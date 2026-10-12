@@ -1,0 +1,23 @@
+{
+  "name": "lanterns-oath",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:full": "vercel dev",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "firebase": "^11.0.2",
+    "jose": "^5.9.6"
+  },
+  "devDependencies": {
+    "vite": "^5.4.11"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

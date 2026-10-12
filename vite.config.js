@@ -1,0 +1,18 @@
+import { defineConfig } from 'vite';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = dirname(fileURLToPath(import.meta.url));
+
+// Three pages: home (index), login and game.
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(root, 'index.html'),
+        login: resolve(root, 'login.html'),
+        game: resolve(root, 'game.html'),
+      },
+    },
+  },
+});

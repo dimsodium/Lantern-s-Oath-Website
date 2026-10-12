@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lantern's Oath</title>
+    <meta name="description" content="Lantern's Oath — a vertical space shooter. Carry the last emerald ring through three trials and three bosses." />
+    <meta name="theme-color" content="#02040a" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body class="home">
+    <canvas id="bg-stars" aria-hidden="true"></canvas>
+    <main>
+      <section class="hero">
+        <img class="hero-warden" id="hero-warden" alt="" />
+        <p class="eyebrow">A space trial in three parts</p>
+        <h1 class="title">Lantern's <span>Oath</span></h1>
+        <p class="oath">“Where the ember fades, I stand. Where the night descends, I burn.”</p>
+        <a class="btn btn-primary btn-play" href="/login.html" id="play-now">Play Now</a>
+        <p class="hint">Sign in to play. Your progress is saved to your account.</p>
+        <a class="scroll-cue" href="#story">▼ THE OATH · CONTROLS · TRIALS</a>
+      </section>
+
+      <section class="section story" id="story">
+        <h2>The Oath</h2>
+        <p>
+          The Wardens of the Emerald Lantern once swore to guard the dark between the stars. Their order has fallen,
+          and only you remain: the last bearer of the ring, whose light burns as bright as your will.
+        </p>
+        <p>
+          Fly through three trials toward the edge of known space. Each one throws harder enemies at you, wave after
+          wave, until its master shows itself. Blast with the ring, raise shields when the fire gets thick, and when
+          your oath is ready, unleash it.
+        </p>
+      </section>
+
+      <section class="section" id="controls">
+        <h2>Controls</h2>
+        <p class="lead">Move freely in every direction: up, down, left and right across the whole screen.</p>
+        <div class="controls">
+          <div class="card control">
+            <div class="what">Move<small>Fly anywhere on screen</small></div>
+            <div class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span class="or">or</span><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div>
+          </div>
+          <div class="card control">
+            <div class="what">Ring Blast<small>Hold to fire</small></div>
+            <div class="keys"><kbd>Space</kbd><span class="or">or</span><kbd>J</kbd></div>
+          </div>
+          <div class="card control">
+            <div class="what">Shield Construct<small>Hold. Blocks fire, drains ring charge</small></div>
+            <div class="keys"><kbd>Shift</kbd><span class="or">or</span><kbd>K</kbd></div>
+          </div>
+          <div class="card control">
+            <div class="what">Oath Burst<small>When the Oath meter is full: clears all enemy fire</small></div>
+            <div class="keys"><kbd>E</kbd><span class="or">or</span><kbd>L</kbd></div>
+          </div>
+          <div class="card control">
+            <div class="what">Pause / Resume<small>Or tap the pause icon, top-right</small></div>
+            <div class="keys"><kbd>P</kbd><span class="or">or</span><kbd>Esc</kbd></div>
+          </div>
+          <div class="card control">
+            <div class="what">Auto-fire · Mute<small>Toggle</small></div>
+            <div class="keys"><kbd>F</kbd><kbd>M</kbd></div>
+          </div>
+          <div class="card control">
+            <div class="what">Touch screens<small>Drag to fly (fires automatically); on-screen Shield and Burst buttons</small></div>
+            <div class="keys"><kbd>Drag</kbd></div>
+          </div>
+        </div>
+        <div class="pickups">
+          <span>🟢 <b>Vitality</b> restores health</span>
+          <span>🟡 <b>Power</b> widens your ring blast (up to 3)</span>
+          <span>🔵 <b>Charge</b> refills ring charge and boosts your Oath</span>
+        </div>
+      </section>
+
+      <section class="section" id="trials">
+        <h2>The Three Trials</h2>
+        <p class="lead">Each level begins easy and gets harder the further you fly, until its boss appears.</p>
+        <div class="grid">
+          <article class="card level-card" data-l="1">
+            <div class="num">LEVEL I</div>
+            <h3>The Drift</h3>
+            <p>A salvage graveyard on the outer rim, overrun by drones, skimmers and armored gunships.</p>
+            <div class="boss">Boss · RUSTMAW, Tyrant of the Drift</div>
+          </article>
+          <article class="card level-card" data-l="2">
+            <div class="num">LEVEL II</div>
+            <h3>The Ember Nebula</h3>
+            <p>A crimson storm alive with homing wisps, diving lancers and proximity mines.</p>
+            <div class="boss">Boss · VEXA, the Ember Matriarch</div>
+          </article>
+          <article class="card level-card" data-l="3">
+            <div class="num">LEVEL III</div>
+            <h3>The Hollow</h3>
+            <p>Beyond the last star, wraiths phase in and out while crystal splitters and sentinels fill the void.</p>
+            <div class="boss">Boss · THE HOLLOW KING, Devourer of Light</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="leaderboard">
+        <h2>Hall of Wardens</h2>
+        <p class="lead">Top scores across all players.</p>
+        <div class="card">
+          <table class="board">
+            <thead><tr><th>#</th><th>Warden</th><th>Trials</th><th>Best score</th></tr></thead>
+            <tbody id="board-body"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <div class="cta"><a class="btn btn-primary" href="/login.html">Play Now</a></div>
+      Lantern's Oath · An original space shooter
+    </footer>
+    <script type="module" src="/src/home.js"></script>
+  </body>
+</html>
