@@ -1,18 +1,9 @@
 import { defineConfig } from 'vite';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const root = dirname(fileURLToPath(import.meta.url));
-
-// Three pages: home (index), login and game.
+// One page (index.html) with hash routes: #home, #controls, #login, #play.
 export default defineConfig({
   build: {
-    rollupOptions: {
-      input: {
-        main: resolve(root, 'index.html'),
-        login: resolve(root, 'login.html'),
-        game: resolve(root, 'game.html'),
-      },
-    },
+    // the sprite PNGs are tiny; keep them as separate files in public/ rather than inlining
+    assetsInlineLimit: 0,
   },
 });

@@ -1,8 +1,9 @@
 // Client for the Vercel API routes (which store progress in Turso).
-// Falls back to browser storage if the API is unreachable or in guest mode.
+// Guests, and signed-in players when the API can't be reached, keep progress in browser storage.
 import { getToken, currentUser, isConfigured } from './firebase.js';
 
 const DEFAULT = { highestLevel: 1, bestScore: 0, completed: false };
+const MAX_LEVEL = 3;
 
 function key() {
   return `lo_progress_${currentUser()?.uid || 'guest'}`;
@@ -26,12 +27,14 @@ function localSet(p) {
 
 function applyLocal(level, score, cleared) {
   const p = localGet();
-  if (cleared && level >= p.highestLevel && level < 3) p.highestLevel = level + 1;
-  if (cleared && level === 3) p.completed = true;
+  if (cleared && level >= p.highestLevel && level < MAX_LEVEL) p.highestLevel = level + 1;
+  if (cleared && level === MAX_LEVEL) p.completed = true;
   p.bestScore = Math.max(p.bestScore, score);
   localSet(p);
   return p;
 }
+
+const useCloud = () => isConfigured && currentUser() && !currentUser().isGuest;
 
 async function call(method, body) {
   const token = await getToken();
@@ -46,7 +49,7 @@ async function call(method, body) {
 }
 
 export async function loadProgress() {
-  if (!isConfigured || currentUser()?.isGuest) return { ...localGet(), source: 'local' };
+  if (!useCloud()) return { ...localGet(), source: 'local' };
   try {
     const p = await call('GET');
     localSet({ highestLevel: p.highestLevel, bestScore: p.bestScore, completed: p.completed });
@@ -58,10 +61,10 @@ export async function loadProgress() {
 }
 
 export async function submitRun(level, score, cleared) {
-  const local = applyLocal(level, score, cleared);
-  if (!isConfigured || currentUser()?.isGuest) return { ...local, source: 'local' };
+  const local = applyLocal(level, Math.round(score), cleared);
+  if (!useCloud()) return { ...local, source: 'local' };
   try {
-    return { ...(await call('POST', { level, score, cleared })), source: 'cloud' };
+    return { ...(await call('POST', { level, score: Math.round(score), cleared })), source: 'cloud' };
   } catch (err) {
     console.warn('[Lantern’s Oath] Progress saved locally only:', err.message);
     return { ...local, source: 'local' };

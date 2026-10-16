@@ -1,122 +1,180 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lantern's Oath</title>
-    <meta name="description" content="Lantern's Oath — a vertical space shooter. Carry the last emerald ring through three trials and three bosses." />
-    <meta name="theme-color" content="#02040a" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Cinzel:wght@600;700&display=swap" rel="stylesheet" />
-  </head>
-  <body class="home">
-    <canvas id="bg-stars" aria-hidden="true"></canvas>
-    <main>
-      <section class="hero">
-        <img class="hero-warden" id="hero-warden" alt="" />
-        <p class="eyebrow">A space trial in three parts</p>
-        <h1 class="title">Lantern's <span>Oath</span></h1>
-        <p class="oath">“Where the ember fades, I stand. Where the night descends, I burn.”</p>
-        <a class="btn btn-primary btn-play" href="/login.html" id="play-now">Play Now</a>
-        <p class="hint">Sign in to play. Your progress is saved to your account.</p>
-        <a class="scroll-cue" href="#story">▼ THE OATH · CONTROLS · TRIALS</a>
-      </section>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Lantern's Oath</title>
+<meta name="description" content="Lantern's Oath: fly, punch and construct your way through space rats to Otto Zundapt. Beware my power." />
+<link rel="icon" type="image/svg+xml" href="/img/lantern.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
+</head>
+<body>
+<div class="space" aria-hidden="true"></div>
 
-      <section class="section story" id="story">
-        <h2>The Oath</h2>
-        <p>
-          The Wardens of the Emerald Lantern once swore to guard the dark between the stars. Their order has fallen,
-          and only you remain: the last bearer of the ring, whose light burns as bright as your will.
-        </p>
-        <p>
-          Fly through three trials toward the edge of known space. Each one throws harder enemies at you, wave after
-          wave, until its master shows itself. Blast with the ring, raise shields when the fire gets thick, and when
-          your oath is ready, unleash it.
-        </p>
-      </section>
+<header class="topbar">
+  <a class="brand" href="#home"><img src="/img/lantern.svg" alt="" /><img class="wordmark" src="/img/wordmark.svg" alt="Lantern's Oath" /></a>
+  <nav class="nav">
+    <a href="#home" data-route="home">Home</a>
+    <a href="#controls" data-route="controls">Controls</a>
+  </nav>
+  <div class="user-slot"></div>
+</header>
 
-      <section class="section" id="controls">
-        <h2>Controls</h2>
-        <p class="lead">Move freely in every direction: up, down, left and right across the whole screen.</p>
-        <div class="controls">
-          <div class="card control">
-            <div class="what">Move<small>Fly anywhere on screen</small></div>
-            <div class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span class="or">or</span><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div>
-          </div>
-          <div class="card control">
-            <div class="what">Ring Blast<small>Hold to fire</small></div>
-            <div class="keys"><kbd>Space</kbd><span class="or">or</span><kbd>J</kbd></div>
-          </div>
-          <div class="card control">
-            <div class="what">Shield Construct<small>Hold. Blocks fire, drains ring charge</small></div>
-            <div class="keys"><kbd>Shift</kbd><span class="or">or</span><kbd>K</kbd></div>
-          </div>
-          <div class="card control">
-            <div class="what">Oath Burst<small>When the Oath meter is full: clears all enemy fire</small></div>
-            <div class="keys"><kbd>E</kbd><span class="or">or</span><kbd>L</kbd></div>
-          </div>
-          <div class="card control">
-            <div class="what">Pause / Resume<small>Or tap the pause icon, top-right</small></div>
-            <div class="keys"><kbd>P</kbd><span class="or">or</span><kbd>Esc</kbd></div>
-          </div>
-          <div class="card control">
-            <div class="what">Auto-fire · Mute<small>Toggle</small></div>
-            <div class="keys"><kbd>F</kbd><kbd>M</kbd></div>
-          </div>
-          <div class="card control">
-            <div class="what">Touch screens<small>Drag to fly (fires automatically); on-screen Shield and Burst buttons</small></div>
-            <div class="keys"><kbd>Drag</kbd></div>
-          </div>
-        </div>
-        <div class="pickups">
-          <span>🟢 <b>Vitality</b> restores health</span>
-          <span>🟡 <b>Power</b> widens your ring blast (up to 3)</span>
-          <span>🔵 <b>Charge</b> refills ring charge and boosts your Oath</span>
-        </div>
-      </section>
+<section class="view" id="home">
+  <main class="hero">
+    <img class="planet" src="/img/mogo.svg" alt="Mogo, the living planet" role="button" tabindex="0" />
+    <img class="planet-glow" src="/img/mogo-glow.svg" alt="" />
+    <div class="mogo-say" role="status" aria-live="polite"><img src="/img/speech-bubble.svg" alt="" /><span>Mogo doesn't socialize.</span></div>
+    <div class="hero-inner">
+      <img class="lantern-big" src="/img/lantern.svg" alt="" />
+      <h1><img src="/img/wordmark.svg" alt="Lantern's Oath" /></h1>
+      <p class="tag">Beware, My, Power</p>
+      <a class="btn" href="#login" id="play-now">PLAY NOW</a>
+      <nav class="home-menu" aria-label="Menu">
+        <div data-page="main"><button class="menu-btn" data-go="options">OPTIONS</button><a class="menu-btn" href="#controls">CONTROLS</a><button class="menu-btn" data-go="settings">SETTINGS</button></div>
+        <div data-page="options" hidden><a class="menu-btn" data-play href="#">START LEVEL 1</a><a class="menu-btn" data-play data-test href="#">TEST BOSS FIGHT</a><button class="menu-btn" data-act="reset">RESET SETTINGS</button><button class="menu-btn" data-go="main">BACK</button></div>
+        <div data-page="settings" hidden><button class="menu-btn" data-go="background">BACKGROUND</button><button class="menu-btn" data-go="sound">SOUND</button><button class="menu-btn" data-go="main">BACK</button></div>
+        <div data-page="background" hidden><button class="menu-btn" data-set="manyStars">STARS: MANY</button><button class="menu-btn" data-set="shake">SCREEN SHAKE: ON</button><button class="menu-btn" data-set="noMogo">MOGO: ON</button><button class="menu-btn" data-go="settings">BACK</button></div>
+        <div data-page="sound" hidden><div class="vol-row"><button class="menu-btn" data-set="music">MUSIC: ON</button><div class="vol" data-vol="musicVol" role="slider" tabindex="0" aria-label="Music volume" aria-valuemin="0" aria-valuemax="100"><i></i></div><span class="vol-num"></span></div><div class="vol-row"><button class="menu-btn" data-set="sfx">SFX: ON</button><div class="vol" data-vol="sfxVol" role="slider" tabindex="0" aria-label="Effects volume" aria-valuemin="0" aria-valuemax="100"><i></i></div><span class="vol-num"></span></div><button class="menu-btn" data-go="settings">BACK</button></div>
+      </nav>
+    </div>
+  </main>
+</section>
 
-      <section class="section" id="trials">
-        <h2>The Three Trials</h2>
-        <p class="lead">Each level begins easy and gets harder the further you fly, until its boss appears.</p>
-        <div class="grid">
-          <article class="card level-card" data-l="1">
-            <div class="num">LEVEL I</div>
-            <h3>The Drift</h3>
-            <p>A salvage graveyard on the outer rim, overrun by drones, skimmers and armored gunships.</p>
-            <div class="boss">Boss · RUSTMAW, Tyrant of the Drift</div>
-          </article>
-          <article class="card level-card" data-l="2">
-            <div class="num">LEVEL II</div>
-            <h3>The Ember Nebula</h3>
-            <p>A crimson storm alive with homing wisps, diving lancers and proximity mines.</p>
-            <div class="boss">Boss · VEXA, the Ember Matriarch</div>
-          </article>
-          <article class="card level-card" data-l="3">
-            <div class="num">LEVEL III</div>
-            <h3>The Hollow</h3>
-            <p>Beyond the last star, wraiths phase in and out while crystal splitters and sentinels fill the void.</p>
-            <div class="boss">Boss · THE HOLLOW KING, Devourer of Light</div>
-          </article>
-        </div>
-      </section>
+<section class="view" id="controls" hidden>
+  <main class="page">
+    <h2>Controls</h2>
+    <p class="sub">Everything you need to fight your way through all three levels.</p>
+    <section class="controls-grid">
+      <article class="panel control-card">
+        <div class="art"><img src="/img/keys/wasd.svg" alt="The W, A, S and D keys" width="300" /></div>
+        <h3>Move</h3>
+        <p>Use W, A, S and D to fly your Lantern anywhere on the screen. Your Lantern faces wherever your mouse points, so every attack goes that way, diagonals included.</p>
+        <p class="keys">W A S D</p>
+      </article>
+      <article class="panel control-card">
+        <div class="art"><img src="/img/keys/shift.svg" alt="The Shift key" width="300" /></div>
+        <h3>Fly Faster</h3>
+        <p>Hold Shift while you fly with W, A, S and D (or the arrow keys) to boost. Your Lantern flies much faster with a green energy trail, which is great for dodging Otto Zundapt's saws.</p>
+        <p class="keys">SHIFT + W A S D</p>
+      </article>
+      <article class="panel control-card">
+        <div class="art"><img src="/img/keys/space.svg" alt="The space bar" width="300" /></div>
+        <h3>Forcefield</h3>
+        <p>Hold the space bar to put up a forcefield. It blocks attacks and knocks Otto Zundapt's saw blades away (it deals no damage itself), but every hit cracks it a little more until it shatters. It only drains a little charge while it's up, so you can hold it for a good while.</p>
+        <p class="keys">SPACE (HOLD)</p>
+      </article>
+      <article class="panel control-card">
+        <div class="art"><img src="/img/keys/1.svg" alt="The 1 key" width="120" /></div>
+        <h3>Construct Fist</h3>
+        <p>Press 1 to swing a giant green fist out of your ring. It sweeps a full half circle, from one side, across the front, to the other side, wherever you aim, and hits every rat it passes through. Costs a little ring charge.</p>
+        <p class="keys">1</p>
+      </article>
+      <article class="panel control-card">
+        <div class="art"><img src="/img/keys/2.svg" alt="The 2 key" width="120" /></div>
+        <h3>Construct Boulder</h3>
+        <p>Press 2 to launch a big glowing boulder where you're aiming. It smashes through every enemy in its path, but it costs a big chunk of your ring charge and needs 2 seconds to recharge.</p>
+        <p class="keys">2</p>
+      </article>
+      <article class="panel control-card">
+        <div class="art"><img src="/img/keys/3.svg" alt="The 3 key" width="120" /></div>
+        <h3>Ring Beam</h3>
+        <p>Hold 3 to fire a beam straight out of your lantern ring. It hits everything in its path and drains charge while you hold it.</p>
+        <p class="keys">3 (HOLD)</p>
+      </article>
+      <article class="panel control-card">
+        <div class="art"><img src="/img/keys/4.svg" alt="The 4 key" width="120" /></div>
+        <h3>Construct Rope</h3>
+        <p>Press 4 to whirl a green lasso construct and throw it at up to four of the closest enemies. A loop drops over each one and cinches tight, then the caught rats are reeled into the middle, where they stay tied up for a moment. Costs a lot of charge and needs 3 seconds to recharge.</p>
+        <p class="keys">4</p>
+      </article>
+      <article class="panel control-card">
+        <div class="art"><img src="/img/keys/c.svg" alt="The C key" width="120" /></div>
+        <h3>Punch</h3>
+        <p>Press C for a quick basic punch. It's weaker than a construct, but it costs no ring charge, so you can always fight back.</p>
+        <p class="keys">C</p>
+      </article>
+      <article class="panel control-card">
+        <div class="art"><img src="/img/keys/v.svg" alt="The V key" width="120" /></div>
+        <h3>Beware My Power</h3>
+        <p>When the bar under your ring charge is full and your ring is fully charged, press V. Your Lantern unleashes a huge energy burst that wipes out every enemy on screen and takes 65% of a mini-boss's health, but it uses up all of your ring's charge, so recharge with G afterwards.</p>
+        <p class="keys">V</p>
+      </article>
+      <article class="panel control-card">
+        <div class="art"><img src="/img/keys/g.svg" alt="The G key" width="120" /></div>
+        <h3>Recharge</h3>
+        <p>Your ring doesn't refill on its own. Tap G and your Lantern holds up his power battery and recites the Lantern's Oath, filling the ring all the way over 6 seconds (tap G again to stop early). For a quick top-up, hold G instead and it charges for as long as you hold it. A see-through lantern construct forms around you while you recharge and blocks 3 hits before it shatters. You can't move or use constructs while recharging, and a hit after the lantern breaks knocks you out of it, except when you start the Oath after powering down to human form: then nothing can hurt you until the Oath is finished.</p>
+        <p class="keys">G / HOLD G</p>
+      </article>
+      <article class="panel control-card">
+        <div class="art"><img src="/img/keys/p.svg" alt="The P key" width="120" /></div>
+        <h3>Pause</h3>
+        <p>Press P (or Esc) or click the pause button in the top right corner to pause. The pause menu has Options (resume, restart or quit), Controls and Settings. Press P again, or click outside the buttons, to jump back into the fight.</p>
+        <p class="keys">P</p>
+      </article>
+    </section>
+    <section class="panel tips">
+      <h3>How a run works</h3>
+      <ul>
+        <li>Your Lantern has one life. The ring in the bottom left is that life, and the red bar next to the heart is your health.</li>
+        <li>The green bar in the top left is your ring's charge. Every construct uses some, and it only refills when you recharge from your lantern with G. If it runs completely dry while your health is at half or lower, your Lantern loses his suit and turns back into plain Hal, on foot with no flying boost, until you recharge.</li>
+        <li>Space rats keep coming in from both sides, and more of them show up the higher you fly. Every rat you take down lets you climb further, until you reach Otto Zundapt.</li>
+        <li>At the top of the level, Otto Zundapt is waiting. He flies all over the arena and throws spinning saws like a frisbee. Boost with Shift to dodge them, and keep your forcefield ready: his goggle laser locks on and only the forcefield stops it.</li>
+        <li>On a phone or tablet, drag on the left side to fly and use the buttons on the right for constructs.</li>
+      </ul>
+    </section>
+    <p style="text-align:center;margin-top:40px"><a class="btn small" href="#login">PLAY NOW</a></p>
+  </main>
+</section>
 
-      <section class="section" id="leaderboard">
-        <h2>Hall of Wardens</h2>
-        <p class="lead">Top scores across all players.</p>
-        <div class="card">
-          <table class="board">
-            <thead><tr><th>#</th><th>Warden</th><th>Trials</th><th>Best score</th></tr></thead>
-            <tbody id="board-body"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-    <footer>
-      <div class="cta"><a class="btn btn-primary" href="/login.html">Play Now</a></div>
-      Lantern's Oath · An original space shooter
-    </footer>
-    <script type="module" src="/src/home.js"></script>
-  </body>
+<section class="view" id="login" hidden>
+  <main class="page">
+    <h2>Ready, Lantern?</h2>
+    <p class="sub" id="login-sub">Pick a pilot name to start playing.</p>
+    <p class="preview-note" id="preview-note">Sign-in isn't set up on this copy of the site yet, so you play as a guest and your best score is kept in this browser. Email and Google sign-in turn on once the site is deployed with Firebase.</p>
+    <form class="panel auth" id="account-form" novalidate hidden>
+      <div class="auth-tabs" role="tablist">
+        <button type="button" role="tab" data-mode="signin" aria-selected="true">SIGN IN</button>
+        <button type="button" role="tab" data-mode="signup" aria-selected="false">NEW PILOT</button>
+      </div>
+      <label data-signup hidden>Pilot name
+        <input id="acct-name" type="text" maxlength="24" autocomplete="nickname" placeholder="Lantern" />
+      </label>
+      <label>Email
+        <input id="email" type="email" autocomplete="email" placeholder="hal@corps.oa" />
+      </label>
+      <label>Password
+        <input id="password" type="password" autocomplete="current-password" minlength="6" />
+      </label>
+      <button class="btn" type="submit" id="acct-submit">SIGN IN</button>
+      <button class="btn ghost" type="button" id="google">SIGN IN WITH GOOGLE</button>
+      <button class="link-btn" type="button" id="forgot">Forgot your password?</button>
+      <p class="msg" id="acct-msg" role="status"></p>
+    </form>
+    <p class="auth-or" id="auth-or" hidden>OR PLAY AS A GUEST</p>
+    <form class="panel auth" id="guest-form" novalidate>
+      <label>Pilot name
+        <input id="pilot" type="text" maxlength="24" autocomplete="nickname" placeholder="Lantern" />
+      </label>
+      <button class="btn" type="submit">START AS GUEST</button>
+      <p class="msg" id="msg" role="status"></p>
+    </form>
+  </main>
+</section>
+
+<section class="view" id="play" hidden>
+  <main class="page">
+    <div class="game-wrap">
+      <div class="game-frame"><canvas id="game" tabindex="0" aria-label="Lantern's Oath, Level 1. W A S D move, Shift fly faster, C punch, 1 fist, 2 boulder, 3 beam, 4 rope, space forcefield, V Beware My Power, P pause."></canvas></div>
+      <p class="game-hint">Click the game first if the keys don't respond.</p>
+      <h2 id="welcome">Welcome, Lantern</h2>
+      <p class="sub" id="progress">Highest level reached: 1 of 3 · Best score: 0</p>
+    </div>
+  </main>
+</section>
+
+<script type="module" src="/src/main.js"></script>
+</body>
 </html>

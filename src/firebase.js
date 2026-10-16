@@ -1,4 +1,5 @@
 // Firebase Authentication (login). Config comes from Vite env vars (see .env.example).
+// Guests can always play: their pilot name and progress live in this browser only.
 import { initializeApp } from 'firebase/app';
 import {
   getAuth,
@@ -20,34 +21,55 @@ const config = {
   appId: env.VITE_FIREBASE_APP_ID,
 };
 
-// When Firebase isn't configured yet (local dev), the site offers a guest mode
-// so the game can still be played; progress is then kept in the browser only.
+// Without the VITE_FIREBASE_* keys (local dev, or a deploy without them) the site is guest-only.
 export const isConfigured = Boolean(config.apiKey && config.authDomain && config.projectId);
 
 const auth = isConfigured ? getAuth(initializeApp(config)) : null;
-const GUEST_KEY = 'lo_guest';
+const PILOT_KEY = 'lo:pilot';   // the guest's pilot name (same key the artifact used)
 
-function guestUser() {
+function readPilot() {
   try {
-    if (localStorage.getItem(GUEST_KEY) === '1') {
-      return { uid: 'guest', displayName: 'Guest Warden', isGuest: true };
-    }
+    return JSON.parse(localStorage.getItem(PILOT_KEY) || '""') || '';
   } catch {
-    /* storage unavailable */
+    return '';
   }
-  return null;
 }
 
+function guestUser() {
+  const name = readPilot();
+  return name ? { uid: 'guest', displayName: name, isGuest: true } : null;
+}
+
+// Calls cb(user | null) now and whenever sign-in changes. A signed-in Firebase account wins over a guest.
+const listeners = new Set();
+let fbUser = null;
+const emit = () => listeners.forEach((cb) => cb(currentUser()));
+
 export function watchAuth(cb) {
+  listeners.add(cb);
   if (!auth) {
-    cb(guestUser());
-    return () => {};
+    cb(currentUser());
+  } else if (watchAuth.ready) {
+    cb(currentUser());
   }
-  return onAuthStateChanged(auth, cb);
+  return () => listeners.delete(cb);
+}
+if (auth) {
+  onAuthStateChanged(auth, (u) => {
+    fbUser = u;
+    watchAuth.ready = true;
+    emit();
+  });
 }
 
 export function currentUser() {
-  return auth ? auth.currentUser : guestUser();
+  return fbUser || guestUser();
+}
+
+// The name shown in the header and cursed by Otto. Never the full email (it could end up on the leaderboard).
+export function pilotName(user = currentUser()) {
+  if (!user) return '';
+  return (user.displayName || (user.email ? user.email.split('@')[0] : '') || 'Lantern').slice(0, 24);
 }
 
 export async function getToken() {
@@ -63,6 +85,7 @@ export async function signUpEmail(name, email, password) {
   if (name) {
     await updateProfile(cred.user, { displayName: name });
     await cred.user.getIdToken(true); // refresh so the token carries the name
+    emit();
   }
   return cred;
 }
@@ -75,21 +98,23 @@ export async function resetPassword(email) {
   return sendPasswordResetEmail(auth, email);
 }
 
-export function playAsGuest() {
+export function playAsGuest(name) {
   try {
-    localStorage.setItem(GUEST_KEY, '1');
+    localStorage.setItem(PILOT_KEY, JSON.stringify(name));
   } catch {
     /* storage unavailable */
   }
+  emit();
 }
 
 export async function logOut() {
   try {
-    localStorage.removeItem(GUEST_KEY);
+    localStorage.setItem(PILOT_KEY, '""');
   } catch {
     /* storage unavailable */
   }
-  if (auth) await signOut(auth);
+  if (auth && auth.currentUser) await signOut(auth);
+  else emit();
 }
 
 export function friendlyAuthError(err) {
@@ -97,6 +122,7 @@ export function friendlyAuthError(err) {
   const map = {
     'auth/invalid-email': 'That email address doesn’t look right.',
     'auth/missing-password': 'Enter your password.',
+    'auth/missing-email': 'Enter your email address.',
     'auth/invalid-credential': 'Email or password is incorrect.',
     'auth/wrong-password': 'Email or password is incorrect.',
     'auth/user-not-found': 'No account found with that email.',

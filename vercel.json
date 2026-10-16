@@ -4,7 +4,8 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "redirects": [
-    { "source": "/login", "destination": "/login.html", "permanent": false },
-    { "source": "/play", "destination": "/game.html", "permanent": false }
+    { "source": "/login", "destination": "/#login", "permanent": false },
+    { "source": "/play", "destination": "/#play", "permanent": false },
+    { "source": "/controls", "destination": "/#controls", "permanent": false }
   ]
 }
