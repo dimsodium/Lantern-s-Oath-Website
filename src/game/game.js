@@ -1015,12 +1015,17 @@ export function createGame(canvas, opts = {}) {
       const cx = Math.round(p.x), cy = Math.round(p.y - 43 + lift - hover) + 21;
       ctx.save();
       ctx.translate(cx, cy); ctx.rotate((p.leanX || 0) * 0.24);
-      const pulse = 0.5 + 0.2 * Math.sin(s.t * 14);
-      ctx.globalAlpha = pulse * (blink ? 0.45 : 1);
-      ctx.shadowColor = C.green; ctx.shadowBlur = 10;
-      for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) ctx.drawImage(hero.flyGlow[dir], -14 + ox, -21 + oy);
-      ctx.shadowBlur = 0; ctx.globalAlpha = blink ? 0.45 : 1;
+      // the aura hugs his outline: a wide soft halo, then a bright rim two pixels out, then the sprite itself
+      // with a faint wash of green light over it
+      const pulse = 0.85 + 0.15 * Math.sin(s.t * 14), vis = blink ? 0.45 : 1;
+      ctx.shadowColor = C.green; ctx.shadowBlur = 16;
+      ctx.globalAlpha = 0.45 * pulse * vis; ctx.drawImage(hero.flyGlow[dir], -14, -21);
+      ctx.shadowBlur = 6; ctx.globalAlpha = 0.55 * pulse * vis;
+      for (const [ox, oy] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-1, -1], [1, -1], [-1, 1], [1, 1]]) ctx.drawImage(hero.flyGlow[dir], -14 + ox, -21 + oy);
+      ctx.shadowBlur = 0; ctx.globalAlpha = vis;
       ctx.drawImage(img, -14, -21);
+      ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 0.14 * pulse * vis;
+      ctx.drawImage(hero.flyGlow[dir], -14, -21);
       ctx.restore();
     } else if (hero && p.recharge && hero.charge) {
       // Recharging: he holds the power battery up in front of him, his ring pressed to it
@@ -1243,35 +1248,48 @@ export function createGame(canvas, opts = {}) {
   // Long comet streaks of ring light trailing from his fists and boots, following the path he just flew
   // Comet streaks of ring light fixed to his fists and boots. They are drawn from where he is right now
   // (never from old positions), so they stay attached while the screen scrolls.
+  // Fast flight (Shift): soft beams of ring light stream back from his fists, boots and body, like a comet
+  // tail. Each beam leaves the body narrow and bright, spreads out as it trails behind, and fades away. They follow
+  // his heading and bend toward where he was flying a moment ago, so a turn sweeps the light round behind him.
   function drawFlightStreaks(p, hover) {
     const amt = p.streak || 0, live = p.superFly;
     const nrm = (x, y) => { const l = Math.hypot(x, y); return l > 0.05 ? [x / l, y / l] : [0, -1]; };
     const d1 = nrm(p.leanX || 0, p.leanY || 0), d2 = nrm(p.trailX || 0, p.trailY || 0);
-    const len = 70 * amt;
     const ang = live ? (p.leanX || 0) * 0.24 : 0, ca = Math.cos(ang), sa = Math.sin(ang);
     const mir = facingLeft() ? -1 : 1;
-    // measured from the flight-pose sprite: left fist, right fist, left boot, right boot, body glow
-    const lanes = [[-10, 11, 2.5], [4.5, 11, 2.5], [-6, 20.5, 2.5], [1.5, 20.5, 2.5], [-3, 2, 9]]
-      .map(([x, y, w]) => [x * mir * ca - y * sa, x * mir * sa + y * ca - 22, w]);
-    const ox = Math.round(p.x), oy = Math.round(p.y - hover), N = 14; // world coords: the camera shift is already applied
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round"; ctx.lineJoin = "round";
-    for (const [ax, ay, wid] of lanes) {
-      const x0 = ox + ax, y0 = oy + ay;
-      // a curve that leaves along his current heading and bends toward where he was heading before
-      const x1 = x0 - d1[0] * len * 0.5, y1 = y0 - d1[1] * len * 0.5;
-      const x2 = x1 - d2[0] * len * 0.5, y2 = y1 - d2[1] * len * 0.5;
+    // measured from the flight-pose sprite: [x, y, source width, spread width, length, strength]
+    // left fist, right fist, left boot, right boot, and one wide, faint beam off his whole body
+    const lanes = [[-10, 11, 3, 13, 105, 1], [4.5, 11, 3, 13, 105, 1], [-6, 20.5, 3.5, 15, 125, 1], [1.5, 20.5, 3.5, 15, 125, 1], [-3, 2, 14, 30, 95, 0.5]]
+      .map(([x, y, w0, w1, len, k]) => [x * mir * ca - y * sa, x * mir * sa + y * ca - 22, w0, w1, len, k]);
+    const ox = Math.round(p.x), oy = Math.round(p.y - hover), N = 16; // world coords: the camera shift is already applied
+    // a tapered ribbon along the beam's curve: narrow at the body, wider at the tail, its colour fading out
+    // toward the tail (color has an ALPHA placeholder; a0 is the opacity where it leaves the body)
+    function ribbon(x0, y0, x1, y1, x2, y2, reach, wa, wb, color, a0) {
       const pt = (t) => [(1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * x1 + t * t * x2, (1 - t) * (1 - t) * y0 + 2 * (1 - t) * t * y1 + t * t * y2];
-      let prev = pt(0);
-      for (let i = 1; i <= N; i++) {
-        const cur = pt(i / N), k = 1 - (i - 0.5) / N;
-        const seg = () => { ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(cur[0], cur[1]); ctx.stroke(); };
-        if (wid < 5) { ctx.globalAlpha = 0.16 * k * amt; ctx.strokeStyle = C.green; ctx.lineWidth = wid * 3 * (0.4 + 0.6 * k); seg(); }
-        ctx.globalAlpha = (wid > 5 ? 0.13 : 0.7) * k * amt;
-        ctx.strokeStyle = wid > 5 ? C.green : i <= 3 ? "#e8ffe9" : C.bright;
-        ctx.lineWidth = Math.max(1, wid * (0.35 + 0.65 * k)); seg();
-        prev = cur;
+      const L = [], R = [];
+      for (let i = 0; i <= N; i++) {
+        const t = (i / N) * reach, a = pt(Math.max(0, t - 0.02)), b = pt(Math.min(1, t + 0.02)), c = pt(t);
+        const [tx, ty] = nrm(b[0] - a[0], b[1] - a[1]), hw = (wa + (wb - wa) * Math.pow(i / N, 0.8)) / 2;
+        L.push([c[0] - ty * hw, c[1] + tx * hw]); R.push([c[0] + ty * hw, c[1] - tx * hw]);
       }
+      const end = pt(reach), g = ctx.createLinearGradient(x0, y0, end[0], end[1]);
+      g.addColorStop(0, color.replace("ALPHA", a0)); g.addColorStop(0.35, color.replace("ALPHA", a0 * 0.55)); g.addColorStop(1, color.replace("ALPHA", 0));
+      ctx.beginPath(); ctx.moveTo(L[0][0], L[0][1]);
+      for (const q of L) ctx.lineTo(q[0], q[1]);
+      for (let i = R.length - 1; i >= 0; i--) ctx.lineTo(R[i][0], R[i][1]);
+      ctx.closePath(); ctx.fillStyle = g; ctx.fill();
+    }
+    const shimmer = 0.88 + 0.12 * Math.sin(s.t * 23);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";   // overlapping light adds up, brightest where the beams meet
+    for (const [ax, ay, w0, w1, len, k] of lanes) {
+      const x0 = ox + ax, y0 = oy + ay, L = len * amt;
+      const x1 = x0 - d1[0] * L * 0.5, y1 = y0 - d1[1] * L * 0.5;
+      const x2 = x1 - d2[0] * L * 0.5, y2 = y1 - d2[1] * L * 0.5;
+      const a = amt * k * shimmer;
+      ribbon(x0, y0, x1, y1, x2, y2, 1, w0 * 2.2, w1 * 1.6, "rgba(23,165,64,ALPHA)", 0.30 * a);     // outer haze
+      ribbon(x0, y0, x1, y1, x2, y2, 0.85, w0 * 1.2, w1, "rgba(47,216,95,ALPHA)", 0.45 * a);        // the beam
+      if (k >= 1) ribbon(x0, y0, x1, y1, x2, y2, 0.45, w0 * 0.7, w0 * 1.6, "rgba(220,255,226,ALPHA)", 0.75 * a);   // hot core by the body
     }
     ctx.restore();
   }
