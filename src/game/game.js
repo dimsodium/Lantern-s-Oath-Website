@@ -256,6 +256,7 @@ export function createGame(canvas, opts = {}) {
   function bewareMyPower() {
     const p = s.p;
     if (p.bmp < 100 || p.charge < T.charge - 0.5 || p.bmpAnim > 0) return;   // needs a full meter AND a fully charged ring
+    if (p.punch || p.rope || p.beam || p.shield) return;   // one ability at a time: waits for the current one to finish
     p.bmp = 0; p.bmpAnim = 1.8; p.charge = 0; p.oath = null; p.chargeFull = 0; p.bmpDrained = true;   // it pours every bit of the ring's energy into the blast
     p.shield = false; p.beam = false; p.punch = null;
     s.banner = { text: "BEWARE MY POWER!", t: 1.8, big: true }; SFX("bmpCharge");
@@ -356,17 +357,20 @@ export function createGame(canvas, opts = {}) {
     } else if (dx || dy) p.aim = Math.atan2(dy, dx);
     // Recharge: hold G to call up a power battery and charge the ring from it. He stays put and can't use constructs.
     // Tap G (press and let go) to recite the Lantern's Oath; hold G for a quick recharge. G again stops the oath.
+    // One ability at a time: a punch, fist, rope, beam or forcefield has to finish (or be let go) before another
+    // starts, and recharging (G) and Beware My Power wait for it too. A thrown boulder counts until it leaves his hand.
+    const abilityFree = () => !p.punch && !p.rope && !p.beam && !p.shield && !(p.boulderCd > T.boulder.cooldown - T.boulder.cd);
     p.rechargeLock = Math.max(0, (p.rechargeLock || 0) - dt);
     const gHeld = !!(keys.has("g") || touchBtn.charge || pressed.has("g"));   // pressed catches a tap shorter than a frame
     if (gHeld && !p.gPrev) { p.gHeldT = 0; p.gSwallow = !!p.oath; if (p.oath) { p.oath = null; s.oathEcho = 0.6; } }
     if (gHeld) p.gHeldT = (p.gHeldT || 0) + dt;
-    if (!gHeld && p.gPrev && !p.gSwallow && p.gHeldT < T.recharge.tap && p.rechargeLock <= 0 && p.charge < T.charge && !p.punch && !p.rope) {
+    if (!gHeld && p.gPrev && !p.gSwallow && p.gHeldT < T.recharge.tap && p.rechargeLock <= 0 && p.charge < T.charge && abilityFree()) {
       p.oath = { t: 0, from: p.charge, safe: !!p.human }; s.oathEcho = 0;   // started powered down: invincible until the Oath is done
     }
     p.gPrev = gHeld;
     if (p.oath && p.rechargeLock > 0) { p.oath = null; s.oathEcho = 0.6; }
     const wasCharging = p.recharge;
-    p.recharge = !!p.oath || (gHeld && !p.gSwallow && !p.punch && !p.rope && p.rechargeLock <= 0);
+    p.recharge = !!p.oath || (gHeld && !p.gSwallow && (wasCharging || abilityFree()) && p.rechargeLock <= 0);
     p.rechargeT = p.recharge ? (p.rechargeT || 0) + dt : 0;
     p.lanternA = Math.max(0, Math.min(1, (p.lanternA || 0) + (p.recharge ? 6 : -5) * dt));
     if (p.recharge) {
@@ -421,7 +425,7 @@ export function createGame(canvas, opts = {}) {
     p.shieldDown = Math.max(0, p.shieldDown - dt);
     const shieldWas = p.shield;
     if (p.shieldDown > 0) p.shield = false;
-    else p.shield = !p.recharge && (keys.has(" ") || touchBtn.shield) && (p.shield ? useCharge(T.shield.drain * dt) : useCharge(T.shield.start));
+    else p.shield = !p.recharge && (keys.has(" ") || touchBtn.shield) && (p.shield || abilityFree()) && (p.shield ? useCharge(T.shield.drain * dt) : useCharge(T.shield.start));
     if (p.shield && !shieldWas) SFX("shield");
     if (!p.shield && p.shieldDown <= 0) p.shieldHp = Math.min(T.shield.hp, p.shieldHp + T.shield.mend * dt);
     if (p.shieldDown <= 0 && p.shieldHp <= 0) p.shieldHp = T.shield.hp * 0.5;
@@ -429,22 +433,22 @@ export function createGame(canvas, opts = {}) {
     const wasShield = p.shieldT > 0;
     p.shieldT = p.shield ? (p.shieldT || 0) + dt : 0;
     if (p.shield && !wasShield) ringFlash();
-    p.beam = !p.shield && !p.recharge && beamHeld && (p.beam ? useCharge(T.beam.drain * dt) : useCharge(T.beam.start));
+    p.beam = !p.shield && !p.recharge && beamHeld && (p.beam || abilityFree()) && (p.beam ? useCharge(T.beam.drain * dt) : useCharge(T.beam.start));
     if (p.recharge) pressed.clear();
-    if ((pressed.has("c") || pressed.has("punch")) && !p.punch && p.cd <= 0 && !p.shield) {
+    if ((pressed.has("c") || pressed.has("punch")) && abilityFree() && p.cd <= 0) {
       p.punchHand = p.punchHand ? 0 : 1;   // every jab swaps hands: ring hand, other hand, ring hand...
       p.punch = { t: 0, aim: p.aim, hit: new Set(), kind: "punch", off: p.punchHand === 0 }; p.cd = T.punch.cd; SFX("punch");
     }
-    if ((pressed.has("1") || pressed.has("fist")) && !p.punch && p.cd <= 0 && !p.shield && useCharge(T.fist.cost)) {
+    if ((pressed.has("1") || pressed.has("fist")) && abilityFree() && p.cd <= 0 && useCharge(T.fist.cost)) {
       p.punch = { t: 0, aim: p.aim, hit: new Set(), kind: "fist", trail: [] }; p.cd = T.fist.cd; ringFlash(); SFX("fist");
     }
-    if ((pressed.has("2") || pressed.has("boulder")) && p.cd <= 0 && p.boulderCd <= 0 && !p.shield && useCharge(T.boulder.cost)) {
+    if ((pressed.has("2") || pressed.has("boulder")) && abilityFree() && p.cd <= 0 && p.boulderCd <= 0 && useCharge(T.boulder.cost)) {
       const d = aimVec(), h = handPos();
       s.boulders.push({ x: h.x + d[0] * 10, y: h.y + d[1] * 10, vx: d[0] * T.boulder.speed, vy: d[1] * T.boulder.speed, rot: 0, hit: new Set(), age: 0 });
       ringFlash(); SFX("boulder");
       p.cd = T.boulder.cd; p.boulderCd = T.boulder.cooldown;
     }
-    if ((pressed.has("4") || pressed.has("rope")) && !p.rope && p.cd <= 0 && p.ropeCd <= 0 && !p.shield) {
+    if ((pressed.has("4") || pressed.has("rope")) && abilityFree() && p.cd <= 0 && p.ropeCd <= 0) {
       // The lasso catches at most four rats: the closest ones on screen
       const grabbed = s.rats.filter((r) => r.hp > 0 && r.y > s.camY - 10 && r.y < s.camY + H + 20 && r.x > -20 && r.x < W + 20)
         .sort((a, b) => dist(a, p) - dist(b, p)).slice(0, T.rope.max);
