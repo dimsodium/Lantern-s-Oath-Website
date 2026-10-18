@@ -10,8 +10,8 @@ export const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 export const T = {
   speed: 70, boost: 2.125, boostDrain: 3, hp: 100, charge: 450, regenDelay: 0.4,   // fast flight sips a sliver of ring charge (per second)
   // The ring never refills by itself. Tap G: he recites the Lantern's Oath and the ring fills completely over
-  // `oath` seconds. Hold G: a quick recharge at the same pace for as long as it's held.
-  recharge: { rate: 24, oath: 6.5, guard: 3, tap: 0.25, spinUp: 0.35, hitLock: 0.6 },
+  // `oath` seconds. Hold G: a quick recharge (rate per second, 20% faster than the original 24) for as long as it is held.
+  recharge: { rate: 28.8, oath: 6.5, guard: 3, tap: 0.25, spinUp: 0.35, hitLock: 0.6 },
   punch: { cost: 0, cd: 0.46, time: 0.44, reach: 12, dmg: 1, bossDmg: 1, knock: 70 },   // C: a one-two with his own arms, jab then cross, each hit dmg
   fist: { cost: 12, cd: 0.4, time: 0.36, reach: 26, scale: 2.4, dmg: 2, bossDmg: 3, knock: 150, swing: Math.PI / 2 },
   boulder: { cost: 100, cd: 0.5, cooldown: 2, speed: 165, dmg: 4, knock: 130, size: 4 },
