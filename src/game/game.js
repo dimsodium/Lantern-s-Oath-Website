@@ -1741,22 +1741,21 @@ export function createGame(canvas, opts = {}) {
     ctx.fillStyle = C.deep; ctx.fillText(pct + "%", 207, 16); ctx.fillText(pct + "%", 206, 16);
     ctx.fillStyle = C.green; ctx.fillText(pct + "%", 205, 15);
     const full = p.bmp >= 100;
-    // Ring warnings stay on screen, steady, until the player deals with them: once the ring drops below 25% (or
-    // to 5%) the reminder holds until the ring is charged all the way back to full.
+    // Ring warnings stay on screen, steady (no blinking), all in the ring's green. Once the ring drops below 25% the
+    // recharge reminder holds until the ring is charged all the way back to full.
     const ringFull = p.charge >= T.charge - 0.5;
-    if (ringFull) { p.warnLow = false; p.warnDry = false; }
+    if (ringFull) p.warnLow = false;
     if (p.charge < T.charge * 0.25) p.warnLow = true;
-    if (pct <= 5) p.warnDry = true;
     let warnY = 78;
-    const warn = (msg, color) => { text(msg, 40, warnY, 6, color, "left"); warnY += 12; };
-    if (p.warnLow) warn("PRESS G TO RECHARGE", C.bright);
+    const warn = (msg) => { text(msg, 40, warnY, 6, C.green, "left"); warnY += 12; };
+    if (p.warnLow) warn("PRESS G TO RECHARGE");
     drawOath(p);
     bar(40, 26, 160, 5, p.bmp / 100, full && Math.floor(s.t * 6) % 2 ? "#ffffff" : C.bright, C.green);
     drawAbilityBar(p, full && ringFull);
     // Beware My Power is ready but the ring isn't full: stays up until the ring is full (or the meter is spent)
-    if (full && !ringFull) warn("V NEEDS FULL RING CHARGE 100%", C.bright);
-    // ran nearly dry: stays up (showing the live charge) until the ring is full again
-    if (p.warnDry) warn("RING CHARGE " + pct + "%", C.green);
+    if (full && !ringFull) warn("V NEEDS FULL RING CHARGE 100%");
+    // nearly dry: shown only while the ring is at 5% or less
+    if (pct <= 5) warn("RING CHARGE " + pct + "%");
     // Bottom left: the ring (your one life), heart and health
     ctx.drawImage(ART.ring, 6, H - 31, ART.ring.width * 2, ART.ring.height * 2);
     ctx.drawImage(ART.heart, 34, H - 26, ART.heart.width * 2, ART.heart.height * 2);
@@ -1971,11 +1970,11 @@ export function createGame(canvas, opts = {}) {
     if (s.mode === "play" || s.mode === "paused") drawPauseButton();
     if (s.banner) {
       const bn = s.banner;
-      if (bn.big) { text("BEWARE", W / 2, H / 2 - 50, 14, C.bright); text("MY POWER!", W / 2, H / 2 - 30, 14, C.bright); }
+      if (bn.big) { text("BEWARE", W / 2, H / 2 - 50, 14, C.green); text("MY POWER!", W / 2, H / 2 - 30, 14, C.green); }
       else {
         ctx.globalAlpha = Math.min(1, bn.t * 2);
-        text(bn.text, W / 2, H / 2 - 40, bn.sub ? 12 : 10, bn.sub ? C.gold : C.text);
-        if (bn.sub) text(bn.sub, W / 2, H / 2 - 24, 5, C.muted);
+        text(bn.text, W / 2, H / 2 - 40, bn.sub ? 12 : 10, C.green);
+        if (bn.sub) text(bn.sub, W / 2, H / 2 - 24, 5, C.green);
         ctx.globalAlpha = 1;
       }
     }
