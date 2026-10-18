@@ -1741,15 +1741,22 @@ export function createGame(canvas, opts = {}) {
     ctx.fillStyle = C.deep; ctx.fillText(pct + "%", 207, 16); ctx.fillText(pct + "%", 206, 16);
     ctx.fillStyle = C.green; ctx.fillText(pct + "%", 205, 15);
     const full = p.bmp >= 100;
-    // the ring doesn't refill on its own any more, so remind the player how to top it up when it runs low
-    if (!p.recharge && p.charge < T.charge * 0.25 && Math.floor(s.t * 2.5) % 3 !== 2) text("PRESS G TO RECHARGE", 40, 78, 6, C.bright, "left");
+    // Ring warnings stay on screen, steady, until the player deals with them: once the ring drops below 25% (or
+    // to 5%) the reminder holds until the ring is charged all the way back to full.
+    const ringFull = p.charge >= T.charge - 0.5;
+    if (ringFull) { p.warnLow = false; p.warnDry = false; }
+    if (p.charge < T.charge * 0.25) p.warnLow = true;
+    if (pct <= 5) p.warnDry = true;
+    let warnY = 78;
+    const warn = (msg, color) => { text(msg, 40, warnY, 6, color, "left"); warnY += 12; };
+    if (p.warnLow) warn("PRESS G TO RECHARGE", C.bright);
     drawOath(p);
     bar(40, 26, 160, 5, p.bmp / 100, full && Math.floor(s.t * 6) % 2 ? "#ffffff" : C.bright, C.green);
-    const ringFull = p.charge >= T.charge - 0.5;
     drawAbilityBar(p, full && ringFull);
-    if (full && !ringFull && Math.floor(s.t * 2.5) % 3 !== 2) text("V NEEDS FULL RING CHARGE 100%", 40, p.charge < T.charge * 0.25 ? 90 : 78, 6, C.bright, "left");
-    // nearly dry: a flashing warning right below that line
-    if (pct <= 5 && Math.floor(s.t * 4) % 2) text("RING CHARGE " + pct + "%", 40, p.charge < T.charge * 0.25 ? 102 : 90, 6, C.green, "left");
+    // Beware My Power is ready but the ring isn't full: stays up until the ring is full (or the meter is spent)
+    if (full && !ringFull) warn("V NEEDS FULL RING CHARGE 100%", C.bright);
+    // ran nearly dry: stays up (showing the live charge) until the ring is full again
+    if (p.warnDry) warn("RING CHARGE " + pct + "%", C.green);
     // Bottom left: the ring (your one life), heart and health
     ctx.drawImage(ART.ring, 6, H - 31, ART.ring.width * 2, ART.ring.height * 2);
     ctx.drawImage(ART.heart, 34, H - 26, ART.heart.width * 2, ART.heart.height * 2);
