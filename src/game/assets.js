@@ -1,5 +1,6 @@
 // Image files for the game's sprites (public/sprites). Generated from the artifact's embedded sprite data.
 import pixelSprites from "./data/pixel-sprites.json";
+import manhunterMeta from "./data/manhunter.json";
 
 const u = (p) => import.meta.env.BASE_URL + p;
 
@@ -224,3 +225,18 @@ export const HERO_ANIM = {
     "oath": 10,
   },
 };
+
+// ---- Level 2 ----
+// Manhunter (from the user's reference sprite): five views in parts so the arms can swing for punches and shots;
+// the three left-facing views are mirrored at load. Pivots, hand tips and eyes per view are in data/manhunter.json.
+export const MANHUNTER = { meta: manhunterMeta, parts: {
+  down: { head: u("sprites/manhunter/down/head.png"), body: u("sprites/manhunter/down/body.png"), armL: u("sprites/manhunter/down/armL.png"), armR: u("sprites/manhunter/down/armR.png") },
+  downright: { head: u("sprites/manhunter/downright/head.png"), body: u("sprites/manhunter/downright/body.png"), armL: u("sprites/manhunter/downright/armL.png"), armR: u("sprites/manhunter/downright/armR.png") },
+  right: { head: u("sprites/manhunter/right/head.png"), body: u("sprites/manhunter/right/body.png"), armL: u("sprites/manhunter/right/armL.png"), armR: u("sprites/manhunter/right/armR.png") },
+  upright: { head: u("sprites/manhunter/upright/head.png"), body: u("sprites/manhunter/upright/body.png"), armL: u("sprites/manhunter/upright/armL.png"), armR: u("sprites/manhunter/upright/armR.png") },
+  up: { head: u("sprites/manhunter/up/head.png"), body: u("sprites/manhunter/up/body.png"), armL: u("sprites/manhunter/up/armL.png"), armR: u("sprites/manhunter/up/armR.png") },
+} };
+
+// The small sand tornado the Manhunters throw (4 spinning frames), and their red and green laser shots (pointing right)
+export const TORNADO = [u("sprites/tornado/0.png"), u("sprites/tornado/1.png"), u("sprites/tornado/2.png"), u("sprites/tornado/3.png")];
+export const BOLTS = { red: u("sprites/bolt/red.png"), green: u("sprites/bolt/green.png") };

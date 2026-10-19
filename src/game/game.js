@@ -1,9 +1,10 @@
-// Lantern's Oath — Level 1: Space Rat Attack.
+// Lantern's Oath — Level 1: Space Rat Attack, then Level 2: the desert and the Manhunters.
 // Top-down, Pokemon Diamond/Pearl style movement through a starlit station deck.
 // Usage: const game = createGame(canvas, { pilot, testBoss, onLevelEnd({ level, score, bossDefeated }), onQuit() });
 //        game.destroy() when leaving the page.
-import { W, H, C, T, BOSS_STOP, FLOW } from "./config.js";
-import { ART, FLASH, bigRat, bigRatFlash, shieldImg, hero, guideLantern, ottoParts, ottoDirs, tintCanvas, loadArt } from "./art.js";
+import { W, H, C, T, BOSS_STOP, FLOW, L2 } from "./config.js";
+import { ART, FLASH, bigRat, bigRatFlash, shieldImg, hero, guideLantern, ottoParts, ottoDirs, tintCanvas, loadArt, mhDirs, tornadoImgs, boltImgs } from "./art.js";
+import { makeDesert } from "./desert.js";
 import { audio } from "../site/audio.js";
 
 const SFX = (n, a) => audio.sfx(n, a);
@@ -14,6 +15,10 @@ export function createGame(canvas, opts = {}) {
   // boss fight. Nothing is saved to progress or scores.
   let testBoss = !!opts.testBoss;
   try { if (sessionStorage.getItem("lo-test-boss") === "1") { testBoss = true; sessionStorage.removeItem("lo-test-boss"); } } catch (e) {}
+  // Test Level 2 (home Options or the pause menu): straight into the desert fight. Nothing is saved.
+  let testL2 = !!opts.testLevel2;
+  try { if (sessionStorage.getItem("lo-test-level2") === "1") { testL2 = true; testBoss = false; sessionStorage.removeItem("lo-test-level2"); } } catch (e) {}
+  let resumeLevel = 1, desertImg = null;   // once a run reaches level 2, a retry starts there
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext("2d");
   ctx.imageSmoothingEnabled = false;
@@ -40,9 +45,11 @@ export function createGame(canvas, opts = {}) {
       p: { x: W / 2, y: H - 30, dir: "up", aim: -Math.PI / 2, walk: 0, moving: false, hp: T.hp, charge: T.charge, bmp: 0,
         inv: 0, flash: 0, drainT: 0, shield: false, shieldHp: T.shield.hp, shieldDown: 0, rope: null, beam: false, punch: null, cd: 0, boulderCd: 0, ropeCd: 0, bmpAnim: 0, hitList: null },
       rats: [], boulders: [], blades: [], fx: [], rings: [], boss: null, banner: null,
-      endTimer: 0, reported: false, shake: 0, whiteout: 0, ghosts: [], bmpWave: null, laserHitT: 0, test: testBoss,
+      endTimer: 0, reported: false, shake: 0, whiteout: 0, ghosts: [], bmpWave: null, laserHitT: 0, test: testBoss || testL2,
+      level: 1, l2: null, hunters: [], tornados: [], bolts: [], meleeOwner: null,
     };
     if (testBoss) { s.camY = BOSS_STOP; s.p.y = BOSS_STOP + H - 40; }
+    if (testL2 || resumeLevel === 2) enterLevel2(true);
   }
   reset();
 
@@ -99,10 +106,11 @@ export function createGame(canvas, opts = {}) {
     }
   }
   function report(bossDefeated) {
-    if (s.reported) return;
-    s.reported = true;
+    const level = s.level || 1;
+    if (s.reported === level) return;
+    s.reported = level;
     if (s.test) return;   // a test fight doesn't count toward progress
-    opts.onLevelEnd?.({ level: 1, score: s.score, bossDefeated });
+    opts.onLevelEnd?.({ level, score: s.score, bossDefeated });
   }
   function gainBmp(n) { s.p.bmp = Math.min(100, s.p.bmp + n); }
   function hitRat(r, dmg, kx, ky) {
@@ -270,6 +278,10 @@ export function createGame(canvas, opts = {}) {
       const b = ratBox(r), dx = b.x - cx, dy = b.y - cy, d = Math.hypot(dx, dy) || 1;
       if (d < A.r + Math.max(b.w, b.h) / 2) { hitRat(r, A.dmg, dx / d * A.knock, dy / d * A.knock); sparks(b.x, b.y, C.bright, 6, 70); }
     }
+    for (const h of s.hunters) if (hunterLive(h)) {
+      const b = hunterBox(h);
+      if (Math.hypot(b.x - cx, b.y - cy) < A.r + Math.max(b.w, b.h) / 2) { hitHunter(h, A.bossDmg); sparks(b.x, b.y, C.bright, 10, 90); }
+    }
     if (s.boss && s.boss.state !== "enter" && s.boss.state !== "dead") {
       const b = bossBox(s.boss);
       if (Math.hypot(b.x - cx, b.y - cy) < A.r + Math.max(b.w, b.h) / 2) { hitBoss(A.bossDmg); sparks(b.x, b.y, C.bright, 10, 90); }
@@ -287,6 +299,8 @@ export function createGame(canvas, opts = {}) {
       r.hp = 1; hitRat(r, 1, 0, 0);
     }
     if (s.boss && s.boss.state !== "enter" && s.boss.state !== "dead") hitBoss(Math.round(s.boss.max * 0.65));   // half the boss's health, plus 30%
+    for (const h of s.hunters) if (hunterLive(h)) hitHunter(h, Math.round(h.max * 0.65));   // each Manhunter takes the same 65%
+    s.bolts = []; s.tornados = [];
     s.blades = [];
   }
 
@@ -519,7 +533,7 @@ export function createGame(canvas, opts = {}) {
         s.spawnT = lerp(FLOW.interval);
       }
     }
-    if (atBoss && !s.boss && alive === 0) startBoss();
+    if (atBoss && !s.boss && alive === 0 && s.level === 1) startBoss();
     s.waveOn = alive > 0;
     // Show the "move forward" arrow whenever there is more of the climb open ahead
     s.goT = !s.boss && !atBoss && s.camY - limitY > 20 ? 0.5 : 0;
@@ -573,6 +587,7 @@ export function createGame(canvas, opts = {}) {
         for (const r of s.rats) if (r.hp > 0 && !pu.hit.has(r) && inBox(pu.x, pu.y, ratBox(r), pad)) {
           pu.hit.add(r); hitRat(r, A.dmg, d[0] * A.knock, d[1] * A.knock); s.shake = pu.kind === "fist" ? 0.08 : 0.04; SFX("hit");
         }
+        for (const h of s.hunters) if (hunterLive(h) && !pu.hit.has(h) && inBox(pu.x, pu.y, hunterBox(h), pad)) { pu.hit.add(h); hitHunter(h, A.bossDmg); SFX("hit"); sparks(pu.x, pu.y, pu.kind === "fist" ? C.bright : "#ffffff", 8, 80); }
         if (s.boss && !pu.hit.has(s.boss) && bossHit(s.boss, pu.x, pu.y, pad)) { pu.hit.add(s.boss); hitBoss(A.bossDmg); SFX("hit"); sparks(pu.x, pu.y, pu.kind === "fist" ? C.bright : "#ffffff", 8, 80); }
       }
       if (pu.t >= A.time) p.punch = null;
@@ -608,6 +623,9 @@ export function createGame(canvas, opts = {}) {
         b.hit.add(r); hitRat(r, T.boulder.dmg, (b.vx / sp) * T.boulder.knock, (b.vy / sp) * T.boulder.knock);
         sparks(b.x, b.y, C.green, 12, 100); s.shake = Math.max(s.shake, 0.08); SFX("boulderHit");
       }
+      for (const h of s.hunters) if (hunterLive(h) && !b.hit.has(h) && inBox(b.x, b.y, hunterBox(h), 22)) {
+        b.hit.add(h); hitHunter(h, 5); SFX("boulderHit"); sparks(b.x, b.y, C.green, 18, 110); s.shake = Math.max(s.shake, 0.1);
+      }
       if (s.boss && !b.hit.has(s.boss) && bossHit(s.boss, b.x, b.y, 22)) {
         b.hit.add(s.boss); hitBoss(5); SFX("boulderHit"); sparks(b.x, b.y, C.green, 18, 110); s.shake = Math.max(s.shake, 0.1);
       }
@@ -637,6 +655,7 @@ export function createGame(canvas, opts = {}) {
       let best = null, bestD = Infinity;
       for (const r of s.rats) if (r.hp > 0) { const dd = lineDist(ratBox(r)); if (dd < bestD) { bestD = dd; best = r; } }
       if (s.boss) { const dd = lineDist(bossBox(s.boss)); if (dd < bestD) { bestD = dd; best = s.boss; } }
+      for (const h of s.hunters) if (hunterLive(h)) { const dd = lineDist(hunterBox(h)); if (dd < bestD) { bestD = dd; best = h; } }
       if (best && bestD < 420) {
         p.beamLen = bestD; p.beamHit = true; p.beamTarget = best;
         const tx = h.x + d[0] * bestD, ty = h.y + d[1] * bestD;
@@ -654,7 +673,8 @@ export function createGame(canvas, opts = {}) {
             s.fx.push({ x: tx, y: ty, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.2 + Math.random() * 0.25, color: Math.random() < 0.4 ? "#ffffff" : C.bright });
           }
         }
-        if (best === s.boss) { s.boss.beamAcc = (s.boss.beamAcc || 0) + T.beam.dps * dt; if (s.boss.beamAcc >= 1) { s.boss.beamAcc -= 1; hitBoss(1); } }
+        if (best.isHunter) { best.beamAcc = (best.beamAcc || 0) + T.beam.dps * dt; if (best.beamAcc >= 1) { best.beamAcc -= 1; hitHunter(best, 1); } }
+        else if (best === s.boss) { s.boss.beamAcc = (s.boss.beamAcc || 0) + T.beam.dps * dt; if (s.boss.beamAcc >= 1) { s.boss.beamAcc -= 1; hitBoss(1); } }
         else {
           const r = best;
           r.beamAcc = (r.beamAcc || 0) + T.beam.dps * dt;
@@ -710,6 +730,7 @@ export function createGame(canvas, opts = {}) {
     // Boss
     const b = s.boss;
     if (b) updateBoss(b, dt, pc, pb);
+    if (s.level === 2) updateLevel2(dt, pc, pb);
 
     // Blades
     for (const bl of s.blades) {
@@ -788,7 +809,8 @@ export function createGame(canvas, opts = {}) {
         const name = String(opts.pilot || "").trim().toUpperCase() || "LANTERN";
         s.dialog = { t: 0, who: "otto", lines: ["CURSE YOU", name + "!"], onClose: () => {
           s.boss = null; s.score += 3000 + s.p.hp * 10;
-          s.mode = "won"; s.endTimer = 0; report(true);
+          report(true);          // level 1 cleared
+          enterLevel2(false);    // ...and on to the desert
         } };
       }
       return;
@@ -928,9 +950,277 @@ export function createGame(canvas, opts = {}) {
     for (const k in tg) b.pose[k] += (tg[k] - b.pose[k]) * ease;
   }
 
+  // ---------- Level 2: the desert and the two Manhunters ----------
+  // After Otto Zundapt falls the sky turns to a desert. Two Manhunters fly in, one from each side. They take turns
+  // to punch (only one comes in for a body shot at a time), throw pairs of sand tornadoes and fire pairs of red and
+  // green laser shots, one from each hand: the left one fires left hand then right, the right one right then left.
+  // A shot is thrown like a ki blast: the arm swings up to point at the Lantern and energy gathers in the open palm.
+  const MH_W = 36, MH_H = 66;
+  function enterLevel2(instant) {
+    s.level = 2; s.l2 = { t: instant ? L2.spawnAt - 0.5 : 0, fade: instant ? 1 : 0, spawned: false, won: false, wonT: 0 };
+    s.boss = null; s.blades = []; s.rats = []; s.hunters = []; s.tornados = []; s.bolts = []; s.meleeOwner = null;
+    s.camY = BOSS_STOP; s.kills = Math.max(s.kills, 99);
+    if (instant) { s.p.x = W / 2; s.p.y = BOSS_STOP + H - 40; }
+    s.p.hp = T.hp;   // a breather between levels: back to full health
+    s.banner = { text: "LEVEL 2", sub: "THE DESERT", t: 2.4 };
+    if (!s.test) resumeLevel = 2;   // dying from here on retries level 2
+  }
+  function spawnHunters() {
+    s.l2.spawned = true;
+    for (const side of [-1, 1]) {
+      s.hunters.push({ isHunter: true, side, x: side < 0 ? -30 : W + 30, y: s.camY + 170, homeX: side < 0 ? W * 0.27 : W * 0.73,
+        hp: L2.hp, max: L2.hp, state: "enter", t: 0, flash: 0, dir: "down", faceA: Math.PI / 2,
+        pose: { la: 0, ra: 0, lx: 0, rx: 0, hy: 0 }, cycle: side < 0 ? 0 : 1, wait: side < 0 ? 0.4 : 1.2, seq: null, goal: null, hand: "armL" });
+    }
+    s.banner = { text: "MANHUNTERS", sub: "DEFEAT BOTH", t: 2.2 };
+  }
+  const hunterLive = (h) => h.state !== "enter" && h.state !== "dead";
+  const hunterBox = (h) => ({ x: h.x, y: h.y - (h.lift ?? L2.lift) - 33, w: 26, h: 60 });
+  function hitHunter(h, dmg) {
+    if (!hunterLive(h)) return;
+    h.hp = Math.max(0, h.hp - dmg); h.flash = 0.08;
+    s.score += Math.round(dmg * 10); gainBmp(dmg * T.bmp.perBossHp);
+    if (h.hp <= 0) {
+      h.state = "dead"; h.t = 0; h.seq = null; h.melee = null;
+      if (s.meleeOwner === h) s.meleeOwner = null;
+      s.shake = Math.max(s.shake, 0.4);
+      const b = hunterBox(h); sparks(b.x, b.y, C.red, 24, 140); sparks(b.x, b.y, "#5a8cff", 16, 120);
+    }
+  }
+  // Shoulder and hand of one arm, in world coordinates, for the facing and pose being drawn.
+  // ang turns the arm about its shoulder; ext slides it out along itself (a punch or a thrust palm).
+  function mhJoint(h, arm) {
+    const m = mhDirs[h.dir] || mhDirs.down, X = Math.round(h.x - MH_W / 2), Y = Math.round(h.y - MH_H - (h.lift ?? L2.lift));
+    if (!m) return { sx: h.x, sy: Y + 15, x: h.x, y: Y + 38, a0: Math.PI / 2 };
+    const sh = m.shoulder[arm], hd = m.hand[arm], ang = arm === "armL" ? h.pose.la : h.pose.ra, ext = arm === "armL" ? h.pose.lx : h.pose.rx;
+    const vx = hd[0] - sh[0], vy = hd[1] - sh[1], c = Math.cos(ang), sn = Math.sin(ang), len = Math.hypot(vx, vy) || 1;
+    const rx = vx * c - vy * sn, ry = vx * sn + vy * c;
+    return { sx: X + sh[0], sy: Y + sh[1], x: X + sh[0] + rx + (rx / len) * ext, y: Y + sh[1] + ry + (ry / len) * ext, a0: Math.atan2(vy, vx) };
+  }
+  // the turn that points an arm at (tx, ty), kept to a natural reach
+  function armAim(h, arm, tx, ty) {
+    const j = mhJoint(h, arm);
+    let a = Math.atan2(ty - j.sy, tx - j.sx) - j.a0;
+    a = Math.atan2(Math.sin(a), Math.cos(a));
+    return Math.max(-2.7, Math.min(2.7, a));
+  }
+  const HAND_ORDER = (h) => (h.side < 0 ? ["armL", "armR"] : ["armR", "armL"]);
+  const CYCLE = ["laser", "tornado", "melee"];
+  function updateLevel2(dt, pc, pb) {
+    const L = s.l2;
+    L.t += dt; L.fade = Math.min(1, L.fade + dt / L2.fade);
+    if (!L.spawned && L.t >= L2.spawnAt) spawnHunters();
+    for (const h of s.hunters) updateHunter(h, dt, pc, pb);
+    s.hunters = s.hunters.filter((h) => !h.gone);
+    // their shots
+    for (const b of s.bolts) {
+      b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+      if (s.p.shield && Math.hypot(b.x - pc.x, b.y - pc.y) < T.shield.r + 2) {
+        b.dead = true; hitShield(L2.bolt.shieldHit); sparks(b.x, b.y, b.color === "red" ? "#ff8080" : C.bright, 8, 80);
+      } else if (!s.p.shield && boxDist(b.x, b.y, pb) < 3) {
+        b.dead = true; hurtPlayer(L2.bolt.dmg, b.x - b.vx * 0.05, b.y - b.vy * 0.05); sparks(b.x, b.y, b.color === "red" ? C.red : C.green, 8, 80);
+      }
+      if (b.life <= 0 || b.x < -30 || b.x > W + 30 || b.y < s.camY - 30 || b.y > s.camY + H + 30) b.dead = true;
+    }
+    s.bolts = s.bolts.filter((b) => !b.dead);
+    for (const tw of s.tornados) {
+      tw.t += dt; tw.x += tw.vx * dt; tw.y += tw.vy * dt;
+      if (Math.random() < 0.5) s.fx.push({ x: tw.x + (Math.random() - 0.5) * 16, y: tw.y - Math.random() * 20, vx: (Math.random() - 0.5) * 40, vy: -10 - Math.random() * 20, life: 0.3, color: Math.random() < 0.5 ? "#e6c088" : "#b06a40" });
+      const cy = tw.y - 15;
+      if (s.p.shield && Math.hypot(tw.x - pc.x, cy - pc.y) < T.shield.r + L2.tornado.r - 2) {
+        tw.dead = true; hitShield(L2.tornado.shieldHit); sparks(tw.x, cy, "#e6c088", 16, 110); sparks(tw.x, cy, "#9aa3ab", 10, 90);
+      } else if (!s.p.shield && boxDist(tw.x, cy, pb) < L2.tornado.r - 2) {
+        tw.dead = true; hurtPlayer(L2.tornado.dmg, tw.x, cy); sparks(tw.x, cy, "#e6c088", 16, 110);
+      }
+      if (tw.t > L2.tornado.life || tw.x < -30 || tw.x > W + 30 || tw.y < s.camY - 30 || tw.y > s.camY + H + 40) tw.dead = true;
+    }
+    s.tornados = s.tornados.filter((t) => !t.dead);
+    // both down: the level is won
+    if (L.spawned && !L.won && s.hunters.length === 0) {
+      L.won = true; L.wonT = 0; s.bolts = []; s.tornados = [];
+      s.banner = { text: "MANHUNTERS DESTROYED", t: 2 };
+      s.score += 4000 + s.p.hp * 10;
+    }
+    if (L.won && (L.wonT += dt) > 1.6 && s.mode === "play") { s.mode = "won"; s.endTimer = 0; report(true); }
+  }
+  function updateHunter(h, dt, pc, pb) {
+    h.t += dt; h.flash = Math.max(0, h.flash - dt);
+    const P = L2.punch;
+    if (h.state === "dead") {
+      if (Math.random() < 0.6) sparks(h.x + (Math.random() - 0.5) * 30, h.y - 10 - Math.random() * 56, Math.random() < 0.5 ? C.red : "#5a8cff", 4, 80);
+      if (h.t > 1.2) { h.gone = true; s.rings.push({ x: h.x, y: h.y - 36, r: 6, life: 0.35, sp: 200, thin: true, color: C.red }); }
+      return;
+    }
+    const chest = { x: h.x, y: h.y - (h.lift ?? L2.lift) - 40 };
+    // always tracking the Lantern: the facing eases round and picks the nearest of eight views
+    const ta = Math.atan2(pc.y - chest.y, pc.x - chest.x);
+    { const da = Math.atan2(Math.sin(ta - h.faceA), Math.cos(ta - h.faceA)); h.faceA += da * Math.min(1, dt * 8); }
+    h.dir = dirOf(h.faceA);
+    let tg = { la: 0, ra: 0, lx: 0, rx: 0, hy: 0 }, ease = 10;
+    const px0 = h.x, py0 = h.y;
+    if (h.state === "enter") {
+      const dx = h.homeX - h.x; h.x += Math.sign(dx) * Math.min(Math.abs(dx), L2.enterSpeed * dt);
+      if (Math.abs(dx) < 2) { h.state = "rest"; h.t = 0; }
+    } else if (h.state === "rest") {
+      // drift about their own half of the arena between attacks
+      const lo = h.side < 0 ? 50 : W / 2 + 40, hi = h.side < 0 ? W / 2 - 40 : W - 50;
+      if (!h.goal || Math.hypot(h.goal.x - h.x, h.goal.y - h.y) < 6) h.goal = { x: lo + Math.random() * (hi - lo), y: s.camY + 110 + Math.random() * (H - 220) };
+      const gx = h.goal.x - h.x, gy = h.goal.y - h.y, gd = Math.hypot(gx, gy) || 1;
+      h.x += (gx / gd) * Math.min(gd, L2.speed * dt); h.y += (gy / gd) * Math.min(gd, L2.speed * dt);
+      if (h.t >= h.wait) {
+        let next = CYCLE[h.cycle % CYCLE.length];
+        if (next === "melee" && s.meleeOwner && s.meleeOwner !== h) { h.cycle++; next = CYCLE[h.cycle % CYCLE.length]; }   // one body shot at a time
+        h.cycle++; h.t = 0;
+        if (next === "melee") { h.state = "melee"; s.meleeOwner = h; h.melee = { phase: "approach", t: 0, arm: h.hand = h.hand === "armL" ? "armR" : "armL", hit: false }; }
+        else { h.state = "shoot"; h.seq = { kind: next, hands: HAND_ORDER(h), i: 0, t: 0, phase: "charge" }; SFX("mhCharge"); }
+      }
+    } else if (h.state === "shoot") {
+      const q = h.seq, A = L2[q.kind === "laser" ? "bolt" : "tornado"], arm = q.hands[q.i];
+      q.t += dt;
+      const aim = armAim(h, arm, pc.x, pc.y);
+      if (arm === "armL") { tg.la = aim; tg.lx = q.phase === "charge" ? 4 : 6; } else { tg.ra = aim; tg.rx = q.phase === "charge" ? 4 : 6; }   // palm thrust out at the Lantern
+      if (q.phase === "charge" && q.t >= A.charge) {
+        const j = mhJoint(h, arm), a = Math.atan2(pc.y - j.y, pc.x - j.x);
+        if (q.kind === "laser") {
+          s.bolts.push({ x: j.x, y: j.y, vx: Math.cos(a) * A.speed, vy: Math.sin(a) * A.speed, color: arm === "armL" ? "red" : "green", life: 3 });
+          SFX("bolt");
+        } else {
+          s.tornados.push({ x: j.x, y: j.y + 15, vx: Math.cos(a) * A.speed, vy: Math.sin(a) * A.speed, t: 0 });
+          SFX("tornado");
+        }
+        sparks(j.x, j.y, q.kind === "laser" ? (arm === "armL" ? C.red : C.green) : "#e6c088", 8, 90);
+        q.phase = "recoil"; q.t = 0;
+        if (arm === "armL") tg.lx = -3; else tg.rx = -3;
+      } else if (q.phase === "recoil" && q.t >= A.gap) {
+        q.i++; q.t = 0; q.phase = "charge";
+        if (q.i >= q.hands.length) { h.seq = null; h.state = "rest"; h.t = 0; h.wait = L2.rest[0] + Math.random() * (L2.rest[1] - L2.rest[0]); }
+        else SFX("mhCharge");
+      }
+      ease = 16;
+    } else if (h.state === "melee") {
+      const mo = h.melee, arm = mo.arm; mo.t += dt;
+      const d = Math.hypot(pc.x - h.x, pc.y - chest.y);
+      if (mo.phase === "approach") {
+        const gx = pc.x - h.x, gy = pc.y + 26 - h.y, gd = Math.hypot(gx, gy) || 1;
+        h.x += (gx / gd) * Math.min(gd, P.approach * dt); h.y += (gy / gd) * Math.min(gd, P.approach * dt);
+        if (d < P.reach + 6) { mo.phase = "wind"; mo.t = 0; }
+        else if (mo.t > P.maxApproach) { mo.phase = "recover"; mo.t = 0; }
+      } else if (mo.phase === "wind") {
+        if (mo.t >= P.wind) { mo.phase = "strike"; mo.t = 0; SFX("ratSwing"); mo.dir = Math.atan2(pc.y - chest.y, pc.x - chest.x); }
+      } else if (mo.phase === "strike") {
+        h.x += Math.cos(mo.dir) * (P.lunge / P.strike) * dt; h.y += Math.sin(mo.dir) * (P.lunge / P.strike) * dt;
+        if (!mo.hit && mo.t >= P.strike * 0.5) {
+          mo.hit = true;
+          const j = mhJoint(h, arm);
+          if (s.p.shield && Math.hypot(j.x - pc.x, j.y - pc.y) < T.shield.r + 8) {
+            hitShield(P.shieldHit); sparks(j.x, j.y, C.bright, 10, 90); s.shake = Math.max(s.shake, 0.1);
+            h.x -= Math.cos(mo.dir) * 14; h.y -= Math.sin(mo.dir) * 14;
+          } else if (!s.p.shield && boxDist(j.x, j.y, pb) < 9) {
+            hurtPlayer(P.dmg, h.x, chest.y); SFX("hit"); s.shake = Math.max(s.shake, 0.14);
+          }
+        }
+        if (mo.t >= P.strike) { mo.phase = "recover"; mo.t = 0; }
+      } else if (mo.phase === "recover" && mo.t >= P.recover) {
+        h.melee = null; h.state = "rest"; h.t = 0; h.wait = L2.rest[0] + Math.random() * (L2.rest[1] - L2.rest[0]);
+        if (s.meleeOwner === h) s.meleeOwner = null;
+      }
+      if (h.melee) {
+        // the punching arm: cocked back on the wind-up, driven straight into his middle on the strike
+        const aim = armAim(h, arm, pc.x, pc.y), ext = mo.phase === "wind" ? -5 : mo.phase === "strike" ? 10 : mo.phase === "recover" ? 4 * (1 - mo.t / P.recover) : 0;
+        const up = mo.phase === "approach" ? aim * 0.35 : aim;
+        if (arm === "armL") { tg.la = up; tg.lx = ext; } else { tg.ra = up; tg.rx = ext; }
+        ease = mo.phase === "strike" ? 40 : 14;
+      }
+    }
+    // stay inside the arena
+    h.x = Math.max(20, Math.min(W - 20, h.x)); if (h.state !== "enter") h.x = Math.max(20, Math.min(W - 20, h.x));
+    h.y = Math.max(s.camY + 80, Math.min(s.camY + H - 10, h.y));
+    // solid: the Lantern can't fly through them
+    if (h.state !== "enter") {
+      const bx = hunterBox(h);
+      if (Math.abs(pb.x - bx.x) < (pb.w + bx.w) / 2 && Math.abs(pb.y - bx.y) < (pb.h + bx.h) / 2) {
+        const ox = pb.x - bx.x, push = (bx.w + pb.w) / 2 + 1 - Math.abs(ox), step = 260 * dt;
+        s.p.x += Math.sign(ox || 1) * Math.min(push, step);
+        if (s.p.shield) hitShield(T.shield.touchDps * dt);
+      }
+    }
+    // idle sway when nothing else moves the arms
+    const spd = Math.hypot(h.x - px0, h.y - py0) / Math.max(dt, 1e-4), sw = Math.sin(h.t * 5 + h.side) * Math.min(1, spd / 50);
+    if (h.state === "rest" || h.state === "enter") { tg.la += sw * 0.12; tg.ra += sw * 0.12; tg.hy = Math.abs(sw); }
+    const k = Math.min(1, dt * ease);
+    for (const key in tg) h.pose[key] += (tg[key] - h.pose[key]) * k;
+  }
+  function drawHunter(h) {
+    const m = mhDirs[h.dir] || mhDirs.down;
+    if (!m) return;
+    const bob = h.state === "dead" ? 0 : Math.sin(s.t * 3 + h.side) * 1.5;
+    h.lift = Math.round(L2.lift + bob);
+    ctx.fillStyle = "rgba(0,0,0,.32)"; ctx.beginPath(); ctx.ellipse(Math.round(h.x), Math.round(h.y - 1), 13, 3, 0, 0, 7); ctx.fill();
+    if (h.state === "dead" && Math.floor(h.t * 10) % 2) ctx.globalAlpha = 0.5;
+    const X = Math.round(h.x - MH_W / 2), Y = Math.round(h.y - MH_H - h.lift), parts = h.flash > 0 ? m.flash : m.parts;
+    for (const k of m.order) {
+      if (k === "armL" || k === "armR") {
+        const sh = m.shoulder[k], hd = m.hand[k], ang = k === "armL" ? h.pose.la : h.pose.ra, ext = k === "armL" ? h.pose.lx : h.pose.rx;
+        const a = Math.atan2(hd[1] - sh[1], hd[0] - sh[0]) + ang;
+        ctx.save(); ctx.translate(X + sh[0] + Math.cos(a) * ext, Y + sh[1] + Math.sin(a) * ext); ctx.rotate(ang);
+        ctx.drawImage(parts[k], -sh[0], -sh[1]); ctx.restore();
+      } else ctx.drawImage(parts[k], X, Y + (k === "head" ? Math.round(h.pose.hy || 0) : 0));
+    }
+    ctx.globalAlpha = 1;
+    // their eyes glow when they're about to strike
+    if (m.eye && h.state !== "dead" && (h.seq || h.melee)) {
+      ctx.fillStyle = "#c8ffff"; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(s.t * 30);
+      for (const [ex, ey] of m.eye) ctx.fillRect(X + ex - 1, Y + ey - 1 + Math.round(h.pose.hy || 0), 2, 2);
+      ctx.globalAlpha = 1;
+    }
+    // energy gathering in the open palm, ki-blast style, before each shot
+    const q = h.seq;
+    if (q && q.phase === "charge") {
+      const arm = q.hands[q.i], j = mhJoint(h, arm), A = L2[q.kind === "laser" ? "bolt" : "tornado"], k = Math.min(1, q.t / A.charge);
+      if (q.kind === "laser") {
+        const col = arm === "armL" ? [255, 59, 59] : [47, 216, 95], r = 3 + 6 * k + Math.sin(s.t * 40) * 0.6;
+        const g = ctx.createRadialGradient(j.x, j.y, 0, j.x, j.y, r * 2.4);
+        g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(0.3, "rgba(255,255,255,0.9)"); g.addColorStop(0.45, `rgba(${col},0.95)`); g.addColorStop(1, `rgba(${col},0)`);
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(j.x, j.y, r * 2.4, 0, 7); ctx.fill();
+        // sparks being drawn in toward the palm
+        for (let i = 0; i < 4; i++) { const a = s.t * 9 + i * 1.57, d = r * 3 * (1 - ((s.t * 3 + i * 0.25) % 1)); ctx.fillStyle = `rgb(${col})`; ctx.fillRect(Math.round(j.x + Math.cos(a) * d), Math.round(j.y + Math.sin(a) * d), 1, 1); }
+      } else {
+        // sand whirling round the palm
+        for (let i = 0; i < 6; i++) {
+          const a = s.t * 14 + i * 1.05, r = 3 + 5 * k;
+          ctx.fillStyle = i % 2 ? "#e6c088" : "#8a8f96"; ctx.fillRect(Math.round(j.x + Math.cos(a) * r), Math.round(j.y + Math.sin(a) * r * 0.6), 2, 2);
+        }
+      }
+    }
+  }
+  function drawL2Shots() {
+    for (const tw of s.tornados) {
+      const img = tornadoImgs[Math.floor(tw.t * 14) % tornadoImgs.length];
+      if (!img || !img.complete) continue;
+      const wob = Math.round(Math.sin(tw.t * 9) * 1.5);
+      ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.fillRect(Math.round(tw.x - 5), Math.round(tw.y), 10, 2);
+      ctx.drawImage(img, Math.round(tw.x - img.width / 2 + wob), Math.round(tw.y - img.height));
+    }
+    for (const b of s.bolts) {
+      const img = boltImgs[b.color];
+      if (!img || !img.complete) continue;
+      ctx.save(); ctx.translate(Math.round(b.x), Math.round(b.y)); ctx.rotate(Math.atan2(b.vy, b.vx));
+      ctx.shadowColor = b.color === "red" ? C.red : C.green; ctx.shadowBlur = 6;
+      ctx.drawImage(img, -img.width + 3, -Math.floor(img.height / 2)); ctx.restore();
+    }
+  }
+
   // ---------- Draw ----------
   function hash(x, y) { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
   function drawBackground() {
+    if (s.level === 2 && s.l2 && s.l2.fade >= 1) { desertImg = desertImg || makeDesert(W, H); ctx.drawImage(desertImg, 0, 0); return; }
+    drawSpace();
+    if (s.level === 2 && s.l2) {   // the space backdrop gives way to the desert
+      desertImg = desertImg || makeDesert(W, H);
+      ctx.globalAlpha = s.l2.fade; ctx.drawImage(desertImg, 0, 0); ctx.globalAlpha = 1;
+    }
+  }
+  function drawSpace() {
     ctx.fillStyle = C.ink; ctx.fillRect(0, 0, W, H);
     for (let i = 0; i < stars.length; i++) {
       const st = stars[i];
@@ -1766,6 +2056,10 @@ export function createGame(canvas, opts = {}) {
       text("OTTO ZUNDAPT", W - 58, 12, 8, C.gold, "right");
       bar(W - 298, 22, 240, 13, b.hp / b.max, C.red, "#7a1018");
     }
+    if (s.level === 2 && s.hunters.some((h) => h.state !== "enter")) {
+      text("MANHUNTERS", W - 58, 12, 8, C.red, "right");
+      s.hunters.forEach((h, i) => bar(W - 298, 22 + i * 14, 240, 10, h.hp / h.max, C.red, "#7a1018"));
+    }
     if (s.goT > 0 && !s.boss) drawGoArrow();
   }
   // On-screen pause button, top right: two bars while playing, a play arrow while paused
@@ -1792,7 +2086,7 @@ export function createGame(canvas, opts = {}) {
   function menuButtons() {
     const bw = 240, bh = 40, gap = 14, x = W / 2 - bw / 2;
     const stack = (labels, top) => labels.map(([id, label], i) => ({ id, label, x, y: top + i * (bh + gap), w: bw, h: bh }));
-    if (menu === "options") return stack([["resume", "RESUME"], ["restart", s.test ? "RESTART TEST" : "RESTART LEVEL"], ["testboss", "TEST BOSS FIGHT"], ["quit", "QUIT TO HOME"], ["back", "BACK"]], 160);
+    if (menu === "options") return stack([["resume", "RESUME"], ["restart", s.test ? "RESTART TEST" : "RESTART LEVEL"], ["testboss", "TEST BOSS FIGHT"], ["testl2", "TEST LEVEL 2"], ["quit", "QUIT TO HOME"], ["back", "BACK"]], 133);
     if (menu === "settings") return stack([["background", "BACKGROUND"], ["sound", "SOUND"], ["back", "BACK"]], 205);
     if (menu === "background") return stack([["stars", "STARS: " + (settings.manyStars ? "MANY" : "FEW")], ["shake", "SCREEN SHAKE: " + (settings.shake ? "ON" : "OFF")], ["mogo", "MOGO: " + (settings.noMogo ? "OFF" : "ON")], ["tosettings", "BACK"]], 205);
     if (menu === "sound") {
@@ -1866,7 +2160,8 @@ export function createGame(canvas, opts = {}) {
     else if (b.id === "tosettings") menu = "settings";
     else if (b.id === "resume") resume();
     else if (b.id === "restart") { reset(); s.mode = "play"; menu = null; keys.clear(); }
-    else if (b.id === "testboss") { testBoss = true; reset(); s.mode = "play"; menu = null; keys.clear(); }
+    else if (b.id === "testboss") { testBoss = true; testL2 = false; resumeLevel = 1; reset(); s.mode = "play"; menu = null; keys.clear(); }
+    else if (b.id === "testl2") { testL2 = true; testBoss = false; reset(); s.mode = "play"; menu = null; keys.clear(); }
     else if (b.id === "quit") { menu = null; if (opts.onQuit) opts.onQuit(); else location.href = "/"; }
     else if (b.id === "shake") { settings.shake = !settings.shake; saveSettings(); }
     else if (b.id === "stars") { settings.manyStars = !settings.manyStars; saveSettings(); }
@@ -1898,6 +2193,7 @@ export function createGame(canvas, opts = {}) {
     if (s.mode !== "title") list.push({ y: s.p.y, d: drawPlayer });
     for (const r of s.rats) if (r.hp > 0) list.push({ y: r.y, d: () => drawRat(r) });
     if (s.boss) list.push({ y: s.boss.y, d: () => drawBoss(s.boss) });
+    for (const h of s.hunters) list.push({ y: h.y, d: () => drawHunter(h) });
     list.sort((a, b) => a.y - b.y).forEach((e) => e.d());
     for (const bo of s.boulders) {
       ctx.save(); ctx.translate(Math.round(bo.x), Math.round(bo.y)); ctx.rotate(Math.round(bo.rot * 2) / 2 * (Math.PI / 2));
@@ -1911,6 +2207,7 @@ export function createGame(canvas, opts = {}) {
       ctx.drawImage(ART.saw, -sw / 2, -sw / 2); ctx.restore();
     }
     if (s.boss && s.boss.laser) drawLaser(s.boss);
+    if (s.level === 2) drawL2Shots();
     if (s.p.rope) drawRope();
     if (s.p.shield) {
       ctx.globalAlpha = 0.85 + 0.15 * Math.sin(s.t * 12);
@@ -1983,10 +2280,11 @@ export function createGame(canvas, opts = {}) {
     if (s.mode === "title") {
       ctx.globalAlpha = 0.55; ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
       ctx.save(); ctx.translate(0, (H - 320) / 2);
-      text(s.test ? "TEST MODE" : "LEVEL 1", W / 2, 62, 8, C.muted);
-      text(s.test ? "TEST BOSS FIGHT" : "SPACE RAT ATTACK", W / 2, 82, 11, C.green);
-      text(s.test ? "Straight to Otto Zundapt." : "Space rats are boarding", W / 2, 108, 6, C.text);
-      text(s.test ? "Nothing here is saved." : "the station. Hold the line.", W / 2, 120, 6, C.text);
+      const l2 = s.level === 2;
+      text(s.test ? "TEST MODE" : l2 ? "LEVEL 2" : "LEVEL 1", W / 2, 62, 8, C.muted);
+      text(l2 ? (s.test ? "TEST LEVEL 2" : "THE MANHUNTERS") : s.test ? "TEST BOSS FIGHT" : "SPACE RAT ATTACK", W / 2, 82, 11, C.green);
+      text(l2 ? "Two Manhunters wait in the desert." : s.test ? "Straight to Otto Zundapt." : "Space rats are boarding", W / 2, 108, 6, C.text);
+      text(s.test ? "Nothing here is saved." : l2 ? "Defeat them both." : "the station. Hold the line.", W / 2, 120, 6, C.text);
       const rows = [["W A S D", "MOVE"], ["SHIFT", "FLY FASTER"], ["MOUSE", "AIM"], ["SPACE (HOLD)", "FORCEFIELD"], ["1", "FIST"], ["2", "BOULDER"], ["3 (HOLD)", "BEAM"], ["4", "ROPE"], ["C", "PUNCH"], ["V", "BEWARE MY POWER"], ["G / HOLD G", "OATH / QUICK CHARGE"], ["P", "PAUSE"]];
       rows.forEach(([k, v], i) => { text(k, W / 2 - 6, 138 + i * 11, 6, C.bright, "right"); text(v, W / 2 + 6, 138 + i * 11, 6, C.text, "left"); });
       if (Math.floor(performance.now() / 500) % 2 === 0) text("PRESS ENTER OR TAP", W / 2, 278, 8, C.bright);

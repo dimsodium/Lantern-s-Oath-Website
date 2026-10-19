@@ -1,7 +1,7 @@
 // Sprite loading and baking: pixel-map sprites, the Lantern's eight-direction models and animations,
 // Otto Zundapt cut into animatable parts, the forcefield and the saw blade.
 import { C, T } from "./config.js";
-import { PIXEL_SPRITES, OTTO_FRONT, OTTO_DIRS, HERO_DIRS, LANTERN, HERO_FLY, HERO_CHARGE, HERO_HUMAN, HERO_CHARGE_HUMAN, HERO_ANIM } from "./assets.js";
+import { PIXEL_SPRITES, OTTO_FRONT, OTTO_DIRS, HERO_DIRS, LANTERN, HERO_FLY, HERO_CHARGE, HERO_HUMAN, HERO_CHARGE_HUMAN, HERO_ANIM, MANHUNTER, TORNADO, BOLTS } from "./assets.js";
 
 // ---------- Sprites ----------
 export const ART = {}, FLASH = {};
@@ -141,6 +141,7 @@ function splitOtto(src, imgs) {
 }
 export function loadArt() {
   if (ART.down0) return;
+  loadLevel2Art();
   const m = PIXEL_SPRITES.maps;
   // The rats' side punch with their metal arm: cocked back behind the body, swept round the front, then a hook
   // thrown out to the side. Built from the standing rat by swapping the arm rows.
@@ -251,4 +252,38 @@ export function loadArt() {
     }
   }
   bigRat.src = OTTO_FRONT;
+}
+
+// ---- Level 2: Manhunters, tornadoes, laser shots ----
+// mhDirs[dir] = { parts, flash, order, shoulder, hand, eye } for all eight facings. A left-facing view is the
+// matching right-facing one mirrored: what was on screen-left moves to screen-right, so the arms swap names.
+export const mhDirs = {};
+export const tornadoImgs = [];
+export const boltImgs = {};
+function loadLevel2Art() {
+  const W = MANHUNTER.meta.size[0];
+  const flip = (src) => { const c = document.createElement("canvas"); c.width = src.width; c.height = src.height; const x = c.getContext("2d"); x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(src, 0, 0); return c; };
+  for (const d of Object.keys(MANHUNTER.parts)) {
+    const urls = MANHUNTER.parts[d], m = MANHUNTER.meta.dirs[d], parts = {};
+    let left = Object.keys(urls).length;
+    for (const k of Object.keys(urls)) {
+      const im = new Image();
+      im.onload = () => {
+        parts[k] = im;
+        if (--left) return;
+        const flash = {}; for (const kk of Object.keys(parts)) flash[kk] = tintCanvas(parts[kk], "#ffffff");
+        mhDirs[d] = { parts, flash, order: m.order, shoulder: m.shoulder, hand: m.hand, eye: m.eye };
+        if (d.includes("right")) {
+          const sw = { armL: "armR", armR: "armL" }, mp = {}, mf = {}, sh = {}, hd = {};
+          for (const kk of Object.keys(parts)) { mp[sw[kk] || kk] = flip(parts[kk]); mf[sw[kk] || kk] = flip(flash[kk]); }
+          for (const a of ["armL", "armR"]) { sh[sw[a]] = [W - m.shoulder[a][0], m.shoulder[a][1]]; hd[sw[a]] = [W - m.hand[a][0], m.hand[a][1]]; }
+          mhDirs[d.replace("right", "left")] = { parts: mp, flash: mf, order: m.order.map((o) => sw[o] || o), shoulder: sh, hand: hd,
+            eye: m.eye && m.eye.map(([ex, ey]) => [W - ex, ey]) };
+        }
+      };
+      im.src = urls[k];
+    }
+  }
+  TORNADO.forEach((u, i) => { const im = new Image(); im.src = u; tornadoImgs[i] = im; });
+  for (const k of Object.keys(BOLTS)) { const im = new Image(); im.src = BOLTS[k]; boltImgs[k] = im; }
 }

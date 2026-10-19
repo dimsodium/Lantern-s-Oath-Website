@@ -40,6 +40,7 @@ export function initHomeMenu() {
     var b = e.target.closest(".menu-btn");
     if (!b) return;
     if ("test" in b.dataset) { try { sessionStorage.setItem("lo-test-boss", "1"); } catch (err) {} return; }   // the link then opens the game
+  if ("test2" in b.dataset) { try { sessionStorage.setItem("lo-test-level2", "1"); } catch (err) {} return; }   // straight to the desert fight
     if (b.dataset.go) page(b.dataset.go);
     else if (b.dataset.set) { var s = load(), k = b.dataset.set; s[k] = !(k in s ? !!s[k] : LABELS[k][3]); save(s); labels(); }
     else if (b.dataset.act === "reset") { save({}); labels(); b.textContent = "SETTINGS RESET"; setTimeout(function () { b.textContent = "RESET SETTINGS"; }, 1200); }

@@ -1,6 +1,6 @@
 # Lantern's Oath
 
-A top-down pixel-art brawler on the web. You fly a Green Lantern through waves of space rats with your ring's constructs (fist, boulder, beam, lasso and forcefield), climb to the top of the level, and fight the mini-boss **Otto Zundapt**. When the meter fills: *Beware My Power*.
+A top-down pixel-art brawler on the web. You fly a Green Lantern through waves of space rats with your ring's constructs (fist, boulder, beam, lasso and forcefield), climb to the top of the level, and fight the mini-boss **Otto Zundapt**. Beat him and the fight moves to a desert for **Level 2**, against two **Manhunters**. When the meter fills: *Beware My Power*.
 
 - **Hosting:** Vercel (static Vite site + serverless API routes in `/api`)
 - **Login:** Firebase Authentication (email/password + Google), with guest play always available
@@ -14,7 +14,7 @@ Everything is one page (`index.html`) with hash routes:
 
 | Route | What's there |
 |---|---|
-| `#home` | Title screen: Mogo (click him), **PLAY NOW**, and a menu with Options (Start Level 1, Test Boss Fight, Reset Settings), Controls, and Settings (background: stars / screen shake / Mogo; sound: music and SFX on/off with volume bars). The chiptune theme plays here. |
+| `#home` | Title screen: Mogo (click him), **PLAY NOW**, and a menu with Options (Start Level 1, Test Boss Fight, Test Level 2, Reset Settings), Controls, and Settings (background: stars / screen shake / Mogo; sound: music and SFX on/off with volume bars). The chiptune theme plays here. |
 | `#controls` | Every key, with pixel-art key icons, and how a run works. |
 | `#login` | Sign in or create an account (email or Google), or play as a guest with a pilot name. Without Firebase keys it's guest-only. |
 | `#play` | The game canvas, plus your highest level and best score. |
@@ -63,7 +63,9 @@ src/
     art.js                 loads and bakes the sprites (shading, mirroring, Otto cut into animatable parts)
     assets.js              paths to every sprite image
     data/pixel-sprites.json  pixel-map sprites (rats, fist) and their palette
-    game.js                createGame(canvas, opts): game loop, player, rats, Otto, constructs, HUD, pause menu, input
+    game.js                createGame(canvas, opts): game loop, player, rats, Otto, the Manhunters, constructs, HUD, pause menu, input
+    desert.js              the Level 2 backdrop: a pixel desert under a teal sky, drawn once
+    data/manhunter.json    Manhunter arm pivots, hand tips and eyes for each view
 public/
   img/                     site art (logo, wordmark, Mogo, key icons, lantern knob)
   sprites/                 game sprites (hero poses and animations, Otto from every direction)
@@ -73,7 +75,7 @@ api/
   _lib/db.js · _lib/auth.js           Turso access + Firebase token verification
 ```
 
-**Tuning:** everything lives in `src/game/config.js` (`T` for the player, constructs, rats and Otto; `FLOW` and `BOSS_STOP` for how the climb and rat spawning ramp up).
+**Tuning:** everything lives in `src/game/config.js`: `L2` for the Manhunters (health, speeds, damage, timings), `T` for the player, constructs, rats and Otto; `FLOW` and `BOSS_STOP` for how the climb and rat spawning ramp up.
 
 **Settings** are saved in the browser under `lo-settings` and shared by the home menu, the pause menu and the sound engine (a `lo-settings` window event tells them to re-read).
 

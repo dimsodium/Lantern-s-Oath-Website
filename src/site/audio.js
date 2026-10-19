@@ -151,6 +151,10 @@ export const audio = (function () {
       [440, 554, 659, 880].forEach((f, i) => tone({ type: "triangle", f, dur: 1.2, vol: 0.05, at: 0.02 * i }));
       tone({ type: "sawtooth", f: 1200, f1: 200, dur: 0.6, vol: 0.06, filter: 3000 });
     },
+    // ---- Level 2: the Manhunters ----
+    mhCharge() { tone({ type: "sawtooth", f: 180, f1: 720, dur: 0.34, vol: 0.04, filter: 1800, a: 0.15 }); tone({ type: "sine", f: 360, f1: 1440, dur: 0.34, vol: 0.03, a: 0.15 }); },
+    bolt() { tone({ type: "square", f: 1500, f1: 320, dur: 0.12, vol: 0.05, filter: 3200 }); noise({ dur: 0.06, vol: 0.12, f: 3000, q: 2 }); },
+    tornado() { noise({ dur: 0.5, vol: 0.22, f: 300, f1: 1400, q: 1.5, a: 0.08 }); noise({ dur: 0.45, vol: 0.1, type: "highpass", f: 2500, a: 0.1 }); },
     // UI: a soft but definite click for anything clickable on the site
     click() {
       noise({ dur: 0.008, vol: 0.22, type: "bandpass", f: 3200, q: 1.8, a: 0.0005 });
