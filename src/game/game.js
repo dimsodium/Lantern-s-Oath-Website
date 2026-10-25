@@ -963,7 +963,7 @@ export function createGame(canvas, opts = {}) {
   const L2_FLOOR = floorY(H) + L2.floorMargin;   // screen y: feet stay on the sand, never up over the dunes
   const [TW, TH] = L2.tornado.size;
   function enterLevel2(instant) {
-    s.level = 2; s.l2 = { t: instant ? L2.spawnAt - 0.5 : 0, fade: instant ? 1 : 0, spawned: false, won: false, wonT: 0 };
+    s.level = 2; s.l2 = { t: instant ? L2.spawnAt - 0.5 : 0, fade: instant ? 1 : 0, spawned: false, won: false, wonT: 0, turn: -1, move: 0 };
     s.boss = null; s.blades = []; s.rats = []; s.hunters = []; s.tornados = []; s.bolts = []; s.meleeOwner = null;
     s.camY = BOSS_STOP; s.kills = Math.max(s.kills, 99);
     if (instant) { s.p.x = W / 2; s.p.y = BOSS_STOP + H - 40; }
@@ -976,7 +976,7 @@ export function createGame(canvas, opts = {}) {
     for (const side of [-1, 1]) {
       s.hunters.push({ isHunter: true, side, name: L2.names[side < 0 ? 0 : 1], x: side < 0 ? -30 : W + 30, y: s.camY + L2_FLOOR + 70, homeX: side < 0 ? W * 0.27 : W * 0.73, guard: L2.guard.hits,
         hp: L2.hp, max: L2.hp, state: "enter", t: 0, flash: 0, dir: "down", faceA: Math.PI / 2,
-        pose: { la: 0, ra: 0, lx: 0, rx: 0, hy: 0 }, cycle: side < 0 ? 0 : 1, wait: side < 0 ? 0.4 : 1.2, seq: null, goal: null, hand: "armL" });
+        pose: { la: 0, ra: 0, lx: 0, rx: 0, hy: 0 }, wait: side < 0 ? 0.4 : 0, seq: null, goal: null, hand: "armL" });
     }
     s.banner = { text: L2.names.join(" & "), sub: "DEFEAT BOTH", t: 2.2 };
   }
@@ -995,7 +995,9 @@ export function createGame(canvas, opts = {}) {
     }
     s.score += Math.round(dmg * 10); gainBmp(dmg * T.bmp.perBossHp);
     if (h.hp <= 0) {
+      const hadTurn = s.l2 && s.l2.turn === h.side && h.state !== "rest";
       h.state = "dead"; h.t = 0; h.seq = null; h.melee = null; h.stun = null; h.sink = 0;
+      if (hadTurn) endTurn(h);
       if (s.meleeOwner === h) s.meleeOwner = null;
       s.shake = Math.max(s.shake, 0.4);
       const b = hunterBox(h); sparks(b.x, b.y, C.red, 24, 140); sparks(b.x, b.y, "#5a8cff", 16, 120);
@@ -1020,7 +1022,9 @@ export function createGame(canvas, opts = {}) {
   }
   // Guard broken: a stagger, a fall onto one knee (side-on, facing the Lantern), 3 seconds stunned, then back up
   function stunHunter(h) {
+    const hadTurn = s.l2 && s.l2.turn === h.side;
     h.state = "stun"; h.t = 0; h.seq = null; h.melee = null; h.guardBeam = 0;
+    if (hadTurn) endTurn(h);
     if (s.meleeOwner === h) s.meleeOwner = null;
     h.stun = { t: 0, side: s.p.x >= h.x ? 1 : -1, landed: false };
     s.banner = { text: h.name + " STUNNED", t: 1.2 };
@@ -1030,6 +1034,19 @@ export function createGame(canvas, opts = {}) {
   }
   const HAND_ORDER = (h) => (h.side < 0 ? ["armL", "armR"] : ["armR", "armL"]);
   const CYCLE = ["laser", "tornado", "melee"];
+  // Turn order: Zephelone (left) leads, Asmodius copies the same move, then the next move in the cycle.
+  // A Manhunter that is down, stunned or not in yet is skipped; on his own, one just works through the cycle.
+  const canAct = (h) => h && !h.gone && (h.state === "rest" || h.state === "shoot" || h.state === "melee");
+  function myTurn(h) {
+    const other = s.hunters.find((o) => o !== h);
+    return s.l2.turn === h.side || !canAct(other);
+  }
+  function endTurn(h) {
+    const L = s.l2, other = s.hunters.find((o) => o !== h && canAct(o));
+    if (other && h.side === -1) { L.turn = other.side; }                 // the leader went: now the copy
+    else { L.move++; L.turn = other ? other.side : h.side; }             // pair done (or solo): next move
+    if (other && L.turn === other.side && other.state === "rest") { other.t = 0; other.wait = L2.rest[0] + Math.random() * (L2.rest[1] - L2.rest[0]); }
+  }
   function updateLevel2(dt, pc, pb) {
     const L = s.l2;
     L.t += dt; L.fade = Math.min(1, L.fade + dt / L2.fade);
@@ -1111,10 +1128,9 @@ export function createGame(canvas, opts = {}) {
       if (!h.goal || Math.hypot(h.goal.x - h.x, h.goal.y - h.y) < 6) h.goal = { x: lo + Math.random() * (hi - lo), y: s.camY + L2_FLOOR + 20 + Math.random() * (H - L2_FLOOR - 50) };
       const gx = h.goal.x - h.x, gy = h.goal.y - h.y, gd = Math.hypot(gx, gy) || 1;
       h.x += (gx / gd) * Math.min(gd, L2.speed * dt); h.y += (gy / gd) * Math.min(gd, L2.speed * dt);
-      if (h.t >= h.wait) {
-        let next = CYCLE[h.cycle % CYCLE.length];
-        if (next === "melee" && s.meleeOwner && s.meleeOwner !== h) { h.cycle++; next = CYCLE[h.cycle % CYCLE.length]; }   // one body shot at a time
-        h.cycle++; h.t = 0;
+      if (h.t >= h.wait && myTurn(h) && !(s.meleeOwner && s.meleeOwner !== h)) {
+        const next = CYCLE[s.l2.move % CYCLE.length];   // the same move the other one just made (or leads the next)
+        s.l2.turn = h.side; h.t = 0;
         if (next === "melee") { h.state = "melee"; s.meleeOwner = h; h.guard = L2.guard.hits; h.guardBeam = 0; h.melee = { phase: "approach", t: 0, arm: h.hand = h.hand === "armL" ? "armR" : "armL", hit: false }; }
         else { h.state = "shoot"; h.seq = { kind: next, hands: HAND_ORDER(h), i: 0, t: 0, phase: "charge" }; SFX("mhCharge"); }
       }
@@ -1137,7 +1153,7 @@ export function createGame(canvas, opts = {}) {
         if (arm === "armL") tg.lx = -3; else tg.rx = -3;
       } else if (q.phase === "recoil" && q.t >= A.gap) {
         q.i++; q.t = 0; q.phase = "charge";
-        if (q.i >= q.hands.length) { h.seq = null; h.state = "rest"; h.t = 0; h.wait = L2.rest[0] + Math.random() * (L2.rest[1] - L2.rest[0]); }
+        if (q.i >= q.hands.length) { h.seq = null; h.state = "rest"; h.t = 0; h.wait = L2.rest[0] + Math.random() * (L2.rest[1] - L2.rest[0]); endTurn(h); }
         else SFX("mhCharge");
       }
       ease = 16;
@@ -1167,6 +1183,7 @@ export function createGame(canvas, opts = {}) {
       } else if (mo.phase === "recover" && mo.t >= P.recover) {
         h.melee = null; h.state = "rest"; h.t = 0; h.wait = L2.rest[0] + Math.random() * (L2.rest[1] - L2.rest[0]);
         if (s.meleeOwner === h) s.meleeOwner = null;
+        endTurn(h);
       }
       if (h.melee) {
         // the punching arm: cocked back on the wind-up, driven straight into his middle on the strike

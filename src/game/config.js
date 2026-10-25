@@ -16,7 +16,7 @@ export const T = {
   fist: { cost: 12, cd: 0.4, time: 0.36, reach: 26, scale: 2.4, dmg: 2, bossDmg: 3, knock: 150, swing: Math.PI / 2 },
   boulder: { cost: 100, cd: 0.5, cooldown: 2, speed: 165, dmg: 4, knock: 130, size: 4 },
   beam: { start: 3, drain: 15, dps: 8.82 },
-  shield: { start: 3, drain: 6.09, r: 26, hp: 148.5, ratHit: 20, sawHit: 25, laserDps: 30, touchDps: 25, mend: 12, broken: 2.5 },
+  shield: { start: 3, drain: 6.09, r: 26, hp: 222.75,   /* forcefield health: 148.5 + 50% */ ratHit: 20, sawHit: 25, laserDps: 30, touchDps: 25, mend: 12, broken: 2.5 },
   rope: { cost: 52.8, cd: 0.5, cooldown: 3, max: 4, whirl: 0.24, reach: 0.3, form: 0.24, pull: 0.75, loop: 10, hold: 1.4 },
   bmp: { perKill: 9, perBossHp: 0.9, passive: 0.6 },
   suitUp: { r: 120, dmg: 3, bossDmg: 5, knock: 220 },   // the burst when he suits back up from human form
@@ -32,13 +32,14 @@ export const FLOW = { gate: 150, startY: -40, perSpawn: 2, maxAlive: [2, 8], int
 
 // ---- Level 2: the desert and the two Manhunters ----
 // The two Manhunters are Zephelone (left) and Asmodius (right). Each has 1.5x Otto Zundapt's health, less 15%.
-// One punches at a time; ranged attacks come in pairs, one from each hand: the left one fires left hand then right,
+// They take turns and copy each other's move: Zephelone tornadoes, then Asmodius tornadoes; Zephelone lasers, then
+// Asmodius lasers; and so on. Ranged attacks come in pairs, one from each hand: the left one fires left hand then right,
 // the right one right hand then left. In level 2 every Lantern attack does 35% more damage.
 export const L2 = {
   names: ["ZEPHELONE", "ASMODIUS"],
   hp: Math.round(T.boss.hp * 1.5 * 0.85), dmgBoost: 1.35, speed: 60, enterSpeed: 95, lift: 6, spawnAt: 2.4, fade: 1.5,
   floorMargin: 14,   // feet stay this far below the base of the dunes
-  rest: [0.7, 1.25],
+  rest: [0.91, 1.625],   // the pause between attacks: 30% longer than the original 0.7-1.25 s
   // the rush: approach speed is 15% below the original 160
   punch: { reach: 30, approach: 136, maxApproach: 4.5, wind: 0.32, strike: 0.16, recover: 0.45, lunge: 12, dmg: 16, shieldHit: 30 },
   // countering the rush: 3 hits while he rushes in empties his guard bar and drops him to one knee for 3 seconds
@@ -47,6 +48,6 @@ export const L2 = {
   bolt: { charge: 0.38, gap: 0.22, speed: 270, dmg: 8, shieldHit: 14 },
   // size: the sprite in pixels. boxes: its funnel as fractions of that size, measured from the sprite
   // [top, bottom, centre x offset, half width] with 0 = bottom tip, 1 = top
-  tornado: { charge: 0.45, gap: 0.3, speed: 100, dmg: 12, shieldHit: 26, life: 5, size: [40, 46],
+  tornado: { charge: 0.45, gap: 0.3, speed: 65,   /* 35% slower than the original 100 */ dmg: 12, shieldHit: 26, life: 5, size: [40, 46],
     boxes: [[1, 0.67, 0, 0.48], [0.67, 0.28, -0.01, 0.29], [0.28, 0, 0.04, 0.16]] },
 };
