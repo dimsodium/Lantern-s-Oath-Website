@@ -759,7 +759,7 @@ export function createGame(canvas, opts = {}) {
     }
     s.blades = s.blades.filter((x) => !x.dead);
 
-    if (p.hp > 0 && p.hp < 30 && Math.random() < dt * 2) sparks(p.x, p.y - 20, C.hp, 1, 15);
+    if (p.hp > 0 && p.hp < T.hp * 0.3 && Math.random() < dt * 2) sparks(p.x, p.y - 20, C.hp, 1, 15);   // badly hurt: below 30%
   }
 
   const OTTO_FACE = { downright: 35, down: 90, downleft: 145, upleft: 215, up: 270, upright: 325 };   // centre angle of each view
@@ -2145,7 +2145,7 @@ export function createGame(canvas, opts = {}) {
     // Bottom left: the ring (your one life), heart and health
     ctx.drawImage(ART.ring, 6, H - 31, ART.ring.width * 2, ART.ring.height * 2);
     ctx.drawImage(ART.heart, 34, H - 26, ART.heart.width * 2, ART.heart.height * 2);
-    bar(58, H - 23, 160, 13, p.hp / T.hp, p.hp < 30 && Math.floor(s.t * 5) % 2 ? "#ff8a8a" : C.hp, C.hpDark);
+    bar(58, H - 23, 160, 13, p.hp / T.hp, p.hp < T.hp * 0.3 && Math.floor(s.t * 5) % 2 ? "#ff8a8a" : C.hp, C.hpDark);
     // Boss bar, top right
     const b = s.boss;
     if (b && b.state !== "enter") {

@@ -8,7 +8,7 @@ export const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
 // ---------- Tuning ----------
 export const T = {
-  speed: 70, boost: 2.125, boostDrain: 3, hp: 100, charge: 450, regenDelay: 0.4,   // fast flight sips a sliver of ring charge (per second)
+  speed: 70, boost: 2.125, boostDrain: 3, hp: 130 /* 100 + 30% */, charge: 450, regenDelay: 0.4,   // fast flight sips a sliver of ring charge (per second)
   // The ring never refills by itself. Tap G: he recites the Lantern's Oath and the ring fills completely over
   // `oath` seconds. Hold G: a quick recharge (rate per second: the original 24, raised 20%, 20%, then 15%) for as long as it is held.
   recharge: { rate: 39.744, oath: 6.5, guard: 3, tap: 0.25, spinUp: 0.35, hitLock: 0.6 },
