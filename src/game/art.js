@@ -272,7 +272,7 @@ function loadLevel2Art() {
         parts[k] = im;
         if (--left) return;
         const flash = {}; for (const kk of Object.keys(parts)) flash[kk] = tintCanvas(parts[kk], "#ffffff");
-        mhDirs[d] = { parts, flash, order: m.order, shoulder: m.shoulder, hand: m.hand, eye: m.eye };
+        mhDirs[d] = { parts, flash, order: m.order, shoulder: m.shoulder, hand: m.hand, eye: m.eye };   // (right/left also have stun_half / stun_kneel: the side-on stun frames)
         if (d.includes("right")) {
           const sw = { armL: "armR", armR: "armL" }, mp = {}, mf = {}, sh = {}, hd = {};
           for (const kk of Object.keys(parts)) { mp[sw[kk] || kk] = flip(parts[kk]); mf[sw[kk] || kk] = flip(flash[kk]); }

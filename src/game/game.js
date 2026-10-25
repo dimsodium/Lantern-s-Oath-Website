@@ -4,7 +4,7 @@
 //        game.destroy() when leaving the page.
 import { W, H, C, T, BOSS_STOP, FLOW, L2 } from "./config.js";
 import { ART, FLASH, bigRat, bigRatFlash, shieldImg, hero, guideLantern, ottoParts, ottoDirs, tintCanvas, loadArt, mhDirs, tornadoImgs, boltImgs } from "./art.js";
-import { makeDesert } from "./desert.js";
+import { makeDesert, floorY } from "./desert.js";
 import { audio } from "../site/audio.js";
 
 const SFX = (n, a) => audio.sfx(n, a);
@@ -519,6 +519,10 @@ export function createGame(canvas, opts = {}) {
     const camGoal = Math.max(target, limitY);
     if (camGoal < s.camY) s.camY += (camGoal - s.camY) * Math.min(1, dt * 9);
     p.y = Math.max(s.camY + 30, Math.min(s.camY + H - 3, p.y));
+    if (s.level === 2 && s.l2) {   // level 2: on the sand floor, never up over the dunes (eased in during the fade)
+      const top = s.camY + L2_FLOOR;
+      if (p.y < top) p.y = s.l2.fade >= 1 ? top : p.y + (top - p.y) * Math.min(1, dt * 6);
+    }
 
     // Spawning: a steady stream of rats that grows as you climb, until the mini-boss arena
     const alive = s.rats.filter((r) => r.hp > 0).length;
@@ -673,7 +677,7 @@ export function createGame(canvas, opts = {}) {
             s.fx.push({ x: tx, y: ty, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.2 + Math.random() * 0.25, color: Math.random() < 0.4 ? "#ffffff" : C.bright });
           }
         }
-        if (best.isHunter) { best.beamAcc = (best.beamAcc || 0) + T.beam.dps * dt; if (best.beamAcc >= 1) { best.beamAcc -= 1; hitHunter(best, 1); } }
+        if (best.isHunter) { best.beamAcc = (best.beamAcc || 0) + T.beam.dps * dt; if (best.beamAcc >= 1) { best.beamAcc -= 1; hitHunter(best, 1, "beam"); } }
         else if (best === s.boss) { s.boss.beamAcc = (s.boss.beamAcc || 0) + T.beam.dps * dt; if (s.boss.beamAcc >= 1) { s.boss.beamAcc -= 1; hitBoss(1); } }
         else {
           const r = best;
@@ -956,6 +960,8 @@ export function createGame(canvas, opts = {}) {
   // green laser shots, one from each hand: the left one fires left hand then right, the right one right then left.
   // A shot is thrown like a ki blast: the arm swings up to point at the Lantern and energy gathers in the open palm.
   const MH_W = 36, MH_H = 66;
+  const L2_FLOOR = floorY(H) + L2.floorMargin;   // screen y: feet stay on the sand, never up over the dunes
+  const [TW, TH] = L2.tornado.size;
   function enterLevel2(instant) {
     s.level = 2; s.l2 = { t: instant ? L2.spawnAt - 0.5 : 0, fade: instant ? 1 : 0, spawned: false, won: false, wonT: 0 };
     s.boss = null; s.blades = []; s.rats = []; s.hunters = []; s.tornados = []; s.bolts = []; s.meleeOwner = null;
@@ -968,20 +974,28 @@ export function createGame(canvas, opts = {}) {
   function spawnHunters() {
     s.l2.spawned = true;
     for (const side of [-1, 1]) {
-      s.hunters.push({ isHunter: true, side, x: side < 0 ? -30 : W + 30, y: s.camY + 170, homeX: side < 0 ? W * 0.27 : W * 0.73,
+      s.hunters.push({ isHunter: true, side, name: L2.names[side < 0 ? 0 : 1], x: side < 0 ? -30 : W + 30, y: s.camY + L2_FLOOR + 70, homeX: side < 0 ? W * 0.27 : W * 0.73, guard: L2.guard.hits,
         hp: L2.hp, max: L2.hp, state: "enter", t: 0, flash: 0, dir: "down", faceA: Math.PI / 2,
         pose: { la: 0, ra: 0, lx: 0, rx: 0, hy: 0 }, cycle: side < 0 ? 0 : 1, wait: side < 0 ? 0.4 : 1.2, seq: null, goal: null, hand: "armL" });
     }
-    s.banner = { text: "MANHUNTERS", sub: "DEFEAT BOTH", t: 2.2 };
+    s.banner = { text: L2.names.join(" & "), sub: "DEFEAT BOTH", t: 2.2 };
   }
   const hunterLive = (h) => h.state !== "enter" && h.state !== "dead";
-  const hunterBox = (h) => ({ x: h.x, y: h.y - (h.lift ?? L2.lift) - 33, w: 26, h: 60 });
-  function hitHunter(h, dmg) {
+  const hunterBox = (h) => { const sk = h.sink || 0; return { x: h.x, y: h.y - (h.lift ?? L2.lift) - 33 + sk / 2, w: 26, h: 60 - sk }; };
+  function hitHunter(h, dmg, kind) {
     if (!hunterLive(h)) return;
+    dmg *= L2.dmgBoost;   // level 2: every Lantern attack hits 35% harder
     h.hp = Math.max(0, h.hp - dmg); h.flash = 0.08;
+    // countering the rush: hits while he charges in wear down his guard; empty it and he drops to one knee
+    if (h.state === "melee" && h.melee && h.melee.phase !== "recover" && h.hp > 0) {
+      if (kind === "beam") { h.guardBeam = (h.guardBeam || 0) + 1; if (h.guardBeam >= L2.guard.beamTicks) { h.guardBeam = 0; h.guard--; } }
+      else h.guard--;
+      sparks(h.x, h.y - (h.lift ?? L2.lift) - 70, "#ffd34a", 5, 60);
+      if (h.guard <= 0) stunHunter(h);
+    }
     s.score += Math.round(dmg * 10); gainBmp(dmg * T.bmp.perBossHp);
     if (h.hp <= 0) {
-      h.state = "dead"; h.t = 0; h.seq = null; h.melee = null;
+      h.state = "dead"; h.t = 0; h.seq = null; h.melee = null; h.stun = null; h.sink = 0;
       if (s.meleeOwner === h) s.meleeOwner = null;
       s.shake = Math.max(s.shake, 0.4);
       const b = hunterBox(h); sparks(b.x, b.y, C.red, 24, 140); sparks(b.x, b.y, "#5a8cff", 16, 120);
@@ -1003,6 +1017,16 @@ export function createGame(canvas, opts = {}) {
     let a = Math.atan2(ty - j.sy, tx - j.sx) - j.a0;
     a = Math.atan2(Math.sin(a), Math.cos(a));
     return Math.max(-2.7, Math.min(2.7, a));
+  }
+  // Guard broken: a stagger, a fall onto one knee (side-on, facing the Lantern), 3 seconds stunned, then back up
+  function stunHunter(h) {
+    h.state = "stun"; h.t = 0; h.seq = null; h.melee = null; h.guardBeam = 0;
+    if (s.meleeOwner === h) s.meleeOwner = null;
+    h.stun = { t: 0, side: s.p.x >= h.x ? 1 : -1, landed: false };
+    s.banner = { text: h.name + " STUNNED", t: 1.2 };
+    s.shake = Math.max(s.shake, 0.2); SFX("stun");
+    const b = hunterBox(h); sparks(b.x, b.y, "#c8f0ff", 18, 130); sparks(b.x, b.y, "#ffffff", 8, 100);
+    s.rings.push({ x: b.x, y: b.y, r: 4, life: 0.3, sp: 180, thin: true, color: "#c8f0ff" });
   }
   const HAND_ORDER = (h) => (h.side < 0 ? ["armL", "armR"] : ["armR", "armL"]);
   const CYCLE = ["laser", "tornado", "melee"];
@@ -1026,10 +1050,11 @@ export function createGame(canvas, opts = {}) {
     for (const tw of s.tornados) {
       tw.t += dt; tw.x += tw.vx * dt; tw.y += tw.vy * dt;
       if (Math.random() < 0.5) s.fx.push({ x: tw.x + (Math.random() - 0.5) * 16, y: tw.y - Math.random() * 20, vx: (Math.random() - 0.5) * 40, vy: -10 - Math.random() * 20, life: 0.3, color: Math.random() < 0.5 ? "#e6c088" : "#b06a40" });
-      const cy = tw.y - 15;
-      if (s.p.shield && Math.hypot(tw.x - pc.x, cy - pc.y) < T.shield.r + L2.tornado.r - 2) {
+      const cy = tw.y - TH / 2, boxes = tornadoBoxes(tw);
+      const overlap = (a, b) => Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2;
+      if (s.p.shield && boxes.some((bx) => boxDist(pc.x, pc.y, bx) < T.shield.r)) {
         tw.dead = true; hitShield(L2.tornado.shieldHit); sparks(tw.x, cy, "#e6c088", 16, 110); sparks(tw.x, cy, "#9aa3ab", 10, 90);
-      } else if (!s.p.shield && boxDist(tw.x, cy, pb) < L2.tornado.r - 2) {
+      } else if (!s.p.shield && boxes.some((bx) => overlap(bx, pb))) {
         tw.dead = true; hurtPlayer(L2.tornado.dmg, tw.x, cy); sparks(tw.x, cy, "#e6c088", 16, 110);
       }
       if (tw.t > L2.tornado.life || tw.x < -30 || tw.x > W + 30 || tw.y < s.camY - 30 || tw.y > s.camY + H + 40) tw.dead = true;
@@ -1038,10 +1063,16 @@ export function createGame(canvas, opts = {}) {
     // both down: the level is won
     if (L.spawned && !L.won && s.hunters.length === 0) {
       L.won = true; L.wonT = 0; s.bolts = []; s.tornados = [];
-      s.banner = { text: "MANHUNTERS DESTROYED", t: 2 };
+      s.banner = { text: L2.names.join(" & ") + " DEFEATED", t: 2 };
       s.score += 4000 + s.p.hp * 10;
     }
     if (L.won && (L.wonT += dt) > 1.6 && s.mode === "play") { s.mode = "won"; s.endTimer = 0; report(true); }
+  }
+  // The tornado's hitbox: three stacked boxes that follow its funnel (wide top, narrow tip), scaled from the sprite
+  // size, and swaying with it exactly as it is drawn.
+  function tornadoBoxes(tw) {
+    const wob = Math.round(Math.sin(tw.t * 9) * 1.5);
+    return L2.tornado.boxes.map(([top, bot, cx, hw]) => ({ x: tw.x + wob + cx * TW, y: tw.y - (top + bot) / 2 * TH, w: hw * 2 * TW, h: (top - bot) * TH }));
   }
   function updateHunter(h, dt, pc, pb) {
     h.t += dt; h.flash = Math.max(0, h.flash - dt);
@@ -1055,23 +1086,36 @@ export function createGame(canvas, opts = {}) {
     // always tracking the Lantern: the facing eases round and picks the nearest of eight views
     const ta = Math.atan2(pc.y - chest.y, pc.x - chest.x);
     { const da = Math.atan2(Math.sin(ta - h.faceA), Math.cos(ta - h.faceA)); h.faceA += da * Math.min(1, dt * 8); }
-    h.dir = dirOf(h.faceA);
+    if (h.state !== "stun") h.dir = dirOf(h.faceA);
     let tg = { la: 0, ra: 0, lx: 0, rx: 0, hy: 0 }, ease = 10;
     const px0 = h.x, py0 = h.y;
-    if (h.state === "enter") {
+    if (h.state === "stun") {
+      // stagger -> drop -> on one knee for 3 s (crackling with energy) -> back up. Side-on, facing the Lantern.
+      const G = L2.guard, st = h.stun; st.t += dt;
+      h.dir = st.side > 0 ? "right" : "left";
+      const tFall = G.stagger, tKneel = G.stagger + G.fall, tRise = tKneel + G.stun, tEnd = tRise + G.rise;
+      if (st.t < tFall) { h.frame = null; h.sink = 0; tg = { la: -0.5 * st.side, ra: -0.5 * st.side, lx: 0, rx: 0, hy: -2 }; ease = 20; }
+      else if (st.t < tKneel) { h.frame = "stun_half"; h.sink = 16; tg = { la: 0.25 * st.side, ra: 0.25 * st.side, lx: 0, rx: 0, hy: 1 }; ease = 18; }
+      else if (st.t < tRise) {
+        if (!st.landed) { st.landed = true; s.shake = Math.max(s.shake, 0.15); sparks(h.x, h.y, "#e6c088", 14, 90); SFX("boulderHit"); }
+        h.frame = "stun_kneel"; h.sink = 26;   // back arched over the raised knee, head down, arms resting on the knee
+        if (Math.random() < dt * 2.5) SFX("zap");
+      } else if (st.t < tEnd) { h.frame = "stun_half"; h.sink = 16; }
+      else { h.state = "rest"; h.t = 0; h.stun = null; h.frame = null; h.sink = 0; h.guard = G.hits; h.wait = 0.4; }
+    } else if (h.state === "enter") {
       const dx = h.homeX - h.x; h.x += Math.sign(dx) * Math.min(Math.abs(dx), L2.enterSpeed * dt);
       if (Math.abs(dx) < 2) { h.state = "rest"; h.t = 0; }
     } else if (h.state === "rest") {
       // drift about their own half of the arena between attacks
       const lo = h.side < 0 ? 50 : W / 2 + 40, hi = h.side < 0 ? W / 2 - 40 : W - 50;
-      if (!h.goal || Math.hypot(h.goal.x - h.x, h.goal.y - h.y) < 6) h.goal = { x: lo + Math.random() * (hi - lo), y: s.camY + 110 + Math.random() * (H - 220) };
+      if (!h.goal || Math.hypot(h.goal.x - h.x, h.goal.y - h.y) < 6) h.goal = { x: lo + Math.random() * (hi - lo), y: s.camY + L2_FLOOR + 20 + Math.random() * (H - L2_FLOOR - 50) };
       const gx = h.goal.x - h.x, gy = h.goal.y - h.y, gd = Math.hypot(gx, gy) || 1;
       h.x += (gx / gd) * Math.min(gd, L2.speed * dt); h.y += (gy / gd) * Math.min(gd, L2.speed * dt);
       if (h.t >= h.wait) {
         let next = CYCLE[h.cycle % CYCLE.length];
         if (next === "melee" && s.meleeOwner && s.meleeOwner !== h) { h.cycle++; next = CYCLE[h.cycle % CYCLE.length]; }   // one body shot at a time
         h.cycle++; h.t = 0;
-        if (next === "melee") { h.state = "melee"; s.meleeOwner = h; h.melee = { phase: "approach", t: 0, arm: h.hand = h.hand === "armL" ? "armR" : "armL", hit: false }; }
+        if (next === "melee") { h.state = "melee"; s.meleeOwner = h; h.guard = L2.guard.hits; h.guardBeam = 0; h.melee = { phase: "approach", t: 0, arm: h.hand = h.hand === "armL" ? "armR" : "armL", hit: false }; }
         else { h.state = "shoot"; h.seq = { kind: next, hands: HAND_ORDER(h), i: 0, t: 0, phase: "charge" }; SFX("mhCharge"); }
       }
     } else if (h.state === "shoot") {
@@ -1085,7 +1129,7 @@ export function createGame(canvas, opts = {}) {
           s.bolts.push({ x: j.x, y: j.y, vx: Math.cos(a) * A.speed, vy: Math.sin(a) * A.speed, color: arm === "armL" ? "red" : "green", life: 3 });
           SFX("bolt");
         } else {
-          s.tornados.push({ x: j.x, y: j.y + 15, vx: Math.cos(a) * A.speed, vy: Math.sin(a) * A.speed, t: 0 });
+          s.tornados.push({ x: j.x, y: j.y + TH / 2, vx: Math.cos(a) * A.speed, vy: Math.sin(a) * A.speed, t: 0 });
           SFX("tornado");
         }
         sparks(j.x, j.y, q.kind === "laser" ? (arm === "armL" ? C.red : C.green) : "#e6c088", 8, 90);
@@ -1134,7 +1178,7 @@ export function createGame(canvas, opts = {}) {
     }
     // stay inside the arena
     h.x = Math.max(20, Math.min(W - 20, h.x)); if (h.state !== "enter") h.x = Math.max(20, Math.min(W - 20, h.x));
-    h.y = Math.max(s.camY + 80, Math.min(s.camY + H - 10, h.y));
+    h.y = Math.max(s.camY + L2_FLOOR, Math.min(s.camY + H - 6, h.y));
     // solid: the Lantern can't fly through them
     if (h.state !== "enter") {
       const bx = hunterBox(h);
@@ -1154,11 +1198,17 @@ export function createGame(canvas, opts = {}) {
     const m = mhDirs[h.dir] || mhDirs.down;
     if (!m) return;
     const bob = h.state === "dead" ? 0 : Math.sin(s.t * 3 + h.side) * 1.5;
-    h.lift = Math.round(L2.lift + bob);
+    h.lift = h.state === "stun" ? (h.stun.t < L2.guard.stagger ? Math.round(L2.lift * (1 - h.stun.t / L2.guard.stagger)) : 0) : Math.round(L2.lift + bob);   // knocked out of the air
+    // the stun frames are whole side-on sprites (48 wide, feet at x=20 facing right; mirrored for left)
+    const fr = h.state === "stun" && h.frame ? h.frame : null;
+    const face = h.dir && h.dir.includes("left") ? -1 : 1, sink = h.sink || 0;
     ctx.fillStyle = "rgba(0,0,0,.32)"; ctx.beginPath(); ctx.ellipse(Math.round(h.x), Math.round(h.y - 1), 13, 3, 0, 0, 7); ctx.fill();
     if (h.state === "dead" && Math.floor(h.t * 10) % 2) ctx.globalAlpha = 0.5;
     const X = Math.round(h.x - MH_W / 2), Y = Math.round(h.y - MH_H - h.lift), parts = h.flash > 0 ? m.flash : m.parts;
-    for (const k of m.order) {
+    if (fr && parts[fr]) {
+      const img = parts[fr], ax = face > 0 ? 20 : img.width - 20;
+      ctx.drawImage(img, Math.round(h.x) - ax, Math.round(h.y) - img.height);
+    } else for (const k of m.order) {
       if (k === "armL" || k === "armR") {
         const sh = m.shoulder[k], hd = m.hand[k], ang = k === "armL" ? h.pose.la : h.pose.ra, ext = k === "armL" ? h.pose.lx : h.pose.rx;
         const a = Math.atan2(hd[1] - sh[1], hd[0] - sh[0]) + ang;
@@ -1172,6 +1222,35 @@ export function createGame(canvas, opts = {}) {
       ctx.fillStyle = "#c8ffff"; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(s.t * 30);
       for (const [ex, ey] of m.eye) ctx.fillRect(X + ex - 1, Y + ey - 1 + Math.round(h.pose.hy || 0), 2, 2);
       ctx.globalAlpha = 1;
+    }
+    // his guard during a rush: three pips over his head. Land three hits before he connects to stun him.
+    if (h.state === "melee" && h.melee && h.melee.phase !== "recover") {
+      const n = L2.guard.hits, bw = 7, gx = Math.round(h.x - (n * (bw + 2) - 2) / 2), gy = Y - 8;
+      ctx.fillStyle = "#000"; ctx.fillRect(gx - 2, gy - 2, n * (bw + 2) + 2, 7);
+      for (let i = 0; i < n; i++) {
+        const on = i < h.guard;
+        ctx.fillStyle = on ? "#ffd34a" : "#3a3020"; ctx.fillRect(gx + i * (bw + 2), gy, bw, 3);
+        if (on) { ctx.fillStyle = "#fff4c0"; ctx.fillRect(gx + i * (bw + 2), gy, bw, 1); }
+      }
+    }
+    // stunned: crackling energy arcs off him and sparkles of light run down his legs
+    if (h.state === "stun" && fr === "stun_kneel") {
+      const by = Math.round(h.y) - 66 + sink - 6;
+      if (Math.floor(s.t * 20) % 3 !== 0) {
+        ctx.strokeStyle = "#e8fbff"; ctx.lineWidth = 1; ctx.shadowColor = "#7fd8ff"; ctx.shadowBlur = 6;
+        for (let a = 0; a < 2; a++) {   // two forking bolts from the shoulders and back
+          let x0 = h.x - face * (6 + Math.random() * 6), y0 = by + 14 + Math.random() * 14;
+          ctx.beginPath(); ctx.moveTo(Math.round(x0), Math.round(y0));
+          for (let k = 0; k < 4; k++) { x0 += -face * (2 + Math.random() * 4); y0 += (Math.random() - 0.6) * 8; ctx.lineTo(Math.round(x0), Math.round(y0)); }
+          ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
+      }
+      for (let i = 0; i < 6; i++) {
+        const px = h.x + (Math.random() - 0.5) * 16, py = by + 42 + Math.random() * 10;
+        ctx.fillStyle = Math.random() < 0.5 ? "#ffffff" : "#8fdcff"; ctx.fillRect(Math.round(px), Math.round(py), 1, 1);
+      }
+      if (Math.floor(s.t * 6) % 2) text("STUNNED", h.x, by + 2, 5, "#8fdcff");
     }
     // energy gathering in the open palm, ki-blast style, before each shot
     const q = h.seq;
@@ -2057,8 +2136,11 @@ export function createGame(canvas, opts = {}) {
       bar(W - 298, 22, 240, 13, b.hp / b.max, C.red, "#7a1018");
     }
     if (s.level === 2 && s.hunters.some((h) => h.state !== "enter")) {
-      text("MANHUNTERS", W - 58, 12, 8, C.red, "right");
-      s.hunters.forEach((h, i) => bar(W - 298, 22 + i * 14, 240, 10, h.hp / h.max, C.red, "#7a1018"));
+      s.hunters.forEach((h, i) => {
+        const y = 10 + i * 24;
+        text(h.name, W - 298, y, 6, C.red, "left");
+        bar(W - 298, y + 6, 240, 9, h.hp / h.max, C.red, "#7a1018");
+      });
     }
     if (s.goT > 0 && !s.boss) drawGoArrow();
   }
@@ -2282,7 +2364,7 @@ export function createGame(canvas, opts = {}) {
       ctx.save(); ctx.translate(0, (H - 320) / 2);
       const l2 = s.level === 2;
       text(s.test ? "TEST MODE" : l2 ? "LEVEL 2" : "LEVEL 1", W / 2, 62, 8, C.muted);
-      text(l2 ? (s.test ? "TEST LEVEL 2" : "THE MANHUNTERS") : s.test ? "TEST BOSS FIGHT" : "SPACE RAT ATTACK", W / 2, 82, 11, C.green);
+      text(l2 ? (s.test ? "TEST LEVEL 2" : L2.names.join(" & ")) : s.test ? "TEST BOSS FIGHT" : "SPACE RAT ATTACK", W / 2, 82, 11, C.green);
       text(l2 ? "Two Manhunters wait in the desert." : s.test ? "Straight to Otto Zundapt." : "Space rats are boarding", W / 2, 108, 6, C.text);
       text(s.test ? "Nothing here is saved." : l2 ? "Defeat them both." : "the station. Hold the line.", W / 2, 120, 6, C.text);
       const rows = [["W A S D", "MOVE"], ["SHIFT", "FLY FASTER"], ["MOUSE", "AIM"], ["SPACE (HOLD)", "FORCEFIELD"], ["1", "FIST"], ["2", "BOULDER"], ["3 (HOLD)", "BEAM"], ["4", "ROPE"], ["C", "PUNCH"], ["V", "BEWARE MY POWER"], ["G / HOLD G", "OATH / QUICK CHARGE"], ["P", "PAUSE"]];
@@ -2407,6 +2489,6 @@ export function createGame(canvas, opts = {}) {
       removeEventListener("pointermove", onMove); removeEventListener("pointerup", onUp); removeEventListener("pointercancel", onUp);
     },
     // For testing: jump straight to a point in the level.
-    debug: { state: () => s, T, ratBox, bossBox },
+    debug: { state: () => s, T, ratBox, bossBox, stunHunter, hitHunter },
   };
 }

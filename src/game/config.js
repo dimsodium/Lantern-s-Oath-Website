@@ -31,12 +31,22 @@ export const BOSS_STOP = -2660;
 export const FLOW = { gate: 150, startY: -40, perSpawn: 2, maxAlive: [2, 8], interval: [2.4, 0.8], heal: 2 };
 
 // ---- Level 2: the desert and the two Manhunters ----
-// Each Manhunter has 1.5x Otto Zundapt's health (about 50% tougher to defeat). One punches at a time; ranged attacks
-// come in pairs, one from each hand: the left Manhunter fires left hand then right, the right one right then left.
+// The two Manhunters are Zephelone (left) and Asmodius (right). Each has 1.5x Otto Zundapt's health, less 15%.
+// One punches at a time; ranged attacks come in pairs, one from each hand: the left one fires left hand then right,
+// the right one right hand then left. In level 2 every Lantern attack does 35% more damage.
 export const L2 = {
-  hp: Math.round(T.boss.hp * 1.5), speed: 60, enterSpeed: 95, lift: 6, spawnAt: 2.4, fade: 1.5,
+  names: ["ZEPHELONE", "ASMODIUS"],
+  hp: Math.round(T.boss.hp * 1.5 * 0.85), dmgBoost: 1.35, speed: 60, enterSpeed: 95, lift: 6, spawnAt: 2.4, fade: 1.5,
+  floorMargin: 14,   // feet stay this far below the base of the dunes
   rest: [0.7, 1.25],
-  punch: { reach: 30, approach: 160, maxApproach: 4, wind: 0.32, strike: 0.16, recover: 0.45, lunge: 12, dmg: 16, shieldHit: 30 },
+  // the rush: approach speed is 15% below the original 160
+  punch: { reach: 30, approach: 136, maxApproach: 4.5, wind: 0.32, strike: 0.16, recover: 0.45, lunge: 12, dmg: 16, shieldHit: 30 },
+  // countering the rush: 3 hits while he rushes in empties his guard bar and drops him to one knee for 3 seconds
+  // (the beam counts one hit for every 4 of its damage ticks)
+  guard: { hits: 3, beamTicks: 4, stagger: 0.16, fall: 0.18, stun: 3, rise: 0.32 },
   bolt: { charge: 0.38, gap: 0.22, speed: 270, dmg: 8, shieldHit: 14 },
-  tornado: { charge: 0.45, gap: 0.3, speed: 100, dmg: 12, shieldHit: 26, life: 5, r: 12 },
+  // size: the sprite in pixels. boxes: its funnel as fractions of that size, measured from the sprite
+  // [top, bottom, centre x offset, half width] with 0 = bottom tip, 1 = top
+  tornado: { charge: 0.45, gap: 0.3, speed: 100, dmg: 12, shieldHit: 26, life: 5, size: [40, 46],
+    boxes: [[1, 0.67, 0, 0.48], [0.67, 0.28, -0.01, 0.29], [0.28, 0, 0.04, 0.16]] },
 };

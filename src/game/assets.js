@@ -228,11 +228,13 @@ export const HERO_ANIM = {
 
 // ---- Level 2 ----
 // Manhunter (from the user's reference sprite): five views in parts so the arms can swing for punches and shots;
-// the three left-facing views are mirrored at load. Pivots, hand tips and eyes per view are in data/manhunter.json.
+// the three left-facing views are mirrored at load. The right view also has the side-on stun frames
+// (stun_half: dropping; stun_kneel: down on one knee, back arched, head down looking at the ground,
+// arms resting on the knee; whole 48x66 sprites with the feet at x=20), mirrored for left with the rest. Pivots, hand tips and eyes per view are in data/manhunter.json.
 export const MANHUNTER = { meta: manhunterMeta, parts: {
   down: { head: u("sprites/manhunter/down/head.png"), body: u("sprites/manhunter/down/body.png"), armL: u("sprites/manhunter/down/armL.png"), armR: u("sprites/manhunter/down/armR.png") },
   downright: { head: u("sprites/manhunter/downright/head.png"), body: u("sprites/manhunter/downright/body.png"), armL: u("sprites/manhunter/downright/armL.png"), armR: u("sprites/manhunter/downright/armR.png") },
-  right: { head: u("sprites/manhunter/right/head.png"), body: u("sprites/manhunter/right/body.png"), armL: u("sprites/manhunter/right/armL.png"), armR: u("sprites/manhunter/right/armR.png") },
+  right: { stun_half: u("sprites/manhunter/right/stun_half.png"), stun_kneel: u("sprites/manhunter/right/stun_kneel.png"), head: u("sprites/manhunter/right/head.png"), body: u("sprites/manhunter/right/body.png"), armL: u("sprites/manhunter/right/armL.png"), armR: u("sprites/manhunter/right/armR.png") },
   upright: { head: u("sprites/manhunter/upright/head.png"), body: u("sprites/manhunter/upright/body.png"), armL: u("sprites/manhunter/upright/armL.png"), armR: u("sprites/manhunter/upright/armR.png") },
   up: { head: u("sprites/manhunter/up/head.png"), body: u("sprites/manhunter/up/body.png"), armL: u("sprites/manhunter/up/armL.png"), armR: u("sprites/manhunter/up/armR.png") },
 } };

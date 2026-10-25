@@ -1,6 +1,6 @@
 # Lantern's Oath
 
-A top-down pixel-art brawler on the web. You fly a Green Lantern through waves of space rats with your ring's constructs (fist, boulder, beam, lasso and forcefield), climb to the top of the level, and fight the mini-boss **Otto Zundapt**. Beat him and the fight moves to a desert for **Level 2**, against two **Manhunters**. When the meter fills: *Beware My Power*.
+A top-down pixel-art brawler on the web. You fly a Green Lantern through waves of space rats with your ring's constructs (fist, boulder, beam, lasso and forcefield), climb to the top of the level, and fight the mini-boss **Otto Zundapt**. Beat him and the fight moves to a desert for **Level 2**, against two Manhunters, **Zephelone** and **Asmodius**. Your attacks hit 35% harder there, and you can counter their rush: land three hits while one charges in (the pips over his head) and he drops to one knee, stunned for 3 seconds. When the meter fills: *Beware My Power*.
 
 - **Hosting:** Vercel (static Vite site + serverless API routes in `/api`)
 - **Login:** Firebase Authentication (email/password + Google), with guest play always available

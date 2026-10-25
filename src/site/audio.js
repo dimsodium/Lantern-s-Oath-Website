@@ -154,6 +154,11 @@ export const audio = (function () {
     // ---- Level 2: the Manhunters ----
     mhCharge() { tone({ type: "sawtooth", f: 180, f1: 720, dur: 0.34, vol: 0.04, filter: 1800, a: 0.15 }); tone({ type: "sine", f: 360, f1: 1440, dur: 0.34, vol: 0.03, a: 0.15 }); },
     bolt() { tone({ type: "square", f: 1500, f1: 320, dur: 0.12, vol: 0.05, filter: 3200 }); noise({ dur: 0.06, vol: 0.12, f: 3000, q: 2 }); },
+    stun() {   // guard broken: an electric crack and a heavy thud
+      noise({ dur: 0.25, vol: 0.3, type: "highpass", f: 2400, a: 0.002 }); tone({ type: "square", f: 1800, f1: 200, dur: 0.22, vol: 0.05, filter: 4000 });
+      tone({ type: "sine", f: 110, f1: 45, dur: 0.3, vol: 0.4 });
+    },
+    zap() { noise({ dur: 0.06, vol: 0.09, type: "highpass", f: 3500, a: 0.001 }); tone({ type: "square", f: 2200 + Math.random() * 1500, dur: 0.04, vol: 0.02, filter: 6000 }); },
     tornado() { noise({ dur: 0.5, vol: 0.22, f: 300, f1: 1400, q: 1.5, a: 0.08 }); noise({ dur: 0.45, vol: 0.1, type: "highpass", f: 2500, a: 0.1 }); },
     // UI: a soft but definite click for anything clickable on the site
     click() {
