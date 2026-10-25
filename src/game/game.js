@@ -67,9 +67,12 @@ export function createGame(canvas, opts = {}) {
     s.p.charge -= n; s.p.drainT = T.regenDelay;
     return true;
   }
-  function hurtPlayer(n, fromX, fromY) {
+  // hit: true for a discrete attack (a shot, a tornado, a punch, a saw, the slam): it always deals its damage when it
+  // connects, even inside the short invincibility after an earlier hit. Continuous damage (touching Otto, his laser)
+  // leaves hit off and respects that invincibility, so it can't drain the Lantern in one burst.
+  function hurtPlayer(n, fromX, fromY, hit) {
     const p = s.p;
-    if (p.inv > 0 || p.bmpAnim > 0 || s.mode !== "play") return;
+    if ((p.inv > 0 && !hit) || p.bmpAnim > 0 || s.mode !== "play") return;
     if (p.oath && p.oath.safe) { p.oathHit = 0.25; return; }   // powered down and reciting the Oath: nothing gets through
     if (p.recharge && (p.lanternHp || 0) > 0 && p.lanternA > 0.3) {
       // the lantern construct around him is a forcefield: it takes the hit (3 in all), then shatters
@@ -717,7 +720,7 @@ export function createGame(canvas, opts = {}) {
             sparks(pc.x + Math.cos(a) * T.shield.r, pc.y + Math.sin(a) * T.shield.r, C.bright, 8, 70);
             r.kx = Math.cos(a) * 60; r.ky = Math.sin(a) * 60; r.stun = 0.15;
             hitShield(T.shield.ratHit);
-          } else if (!p.shield && dNow < T.rat.reach + 6) hurtPlayer(T.rat.dmg, rc.x, rc.y);
+          } else if (!p.shield && dNow < T.rat.reach + 6) hurtPlayer(T.rat.dmg, rc.x, rc.y, true);
         }
       } else if (r.state === "swing" && r.t > 0.22) { r.state = "walk"; r.cd = T.rat.cd; }
       // The forcefield keeps rats from walking inside it
@@ -747,7 +750,7 @@ export function createGame(canvas, opts = {}) {
           const a = Math.atan2(bl.y - pc.y, bl.x - pc.x);
           bl.vx = Math.cos(a) * 190; bl.vy = Math.sin(a) * 190; SFX("reflect");
           sparks(bl.x, bl.y, C.bright, 8, 70); hitShield(T.shield.sawHit);
-        } else if (!p.shield && boxDist(bl.x, bl.y, pb) < T.boss.sawR - 2) { hurtPlayer(T.boss.bladeDmg, bl.x, bl.y); bl.dead = true; }
+        } else if (!p.shield && boxDist(bl.x, bl.y, pb) < T.boss.sawR - 2) { hurtPlayer(T.boss.bladeDmg, bl.x, bl.y, true); bl.dead = true; }
       }
       else if (s.boss && s.boss.state !== "dead" && s.boss.state !== "enter" && bossHit(s.boss, bl.x, bl.y, T.boss.sawR - 4)) {
         // a blade the forcefield batted away cuts Otto if it hits him
@@ -897,7 +900,7 @@ export function createGame(canvas, opts = {}) {
         const fx = Math.max(s.p.x - 6, Math.min(s.p.x + 6, gx)), fy = s.p.y - 2;
         if (((fx - gx) / A.r) ** 2 + ((fy - gy) / (A.r * 0.45)) ** 2 <= 1) {
           if (s.p.shield) hitShield(A.shieldHit);
-          else hurtPlayer(A.dmg, gx, gy);
+          else hurtPlayer(A.dmg, gx, gy, true);
         }
       } else if (cr.phase === "recover" && cr.t >= A.recover) {
         b.crush = null; b.state = "rest"; b.t = 0; b.wait = 1.0; b.next = "triple";
@@ -1059,7 +1062,7 @@ export function createGame(canvas, opts = {}) {
       if (s.p.shield && Math.hypot(b.x - pc.x, b.y - pc.y) < T.shield.r + 2) {
         b.dead = true; hitShield(L2.bolt.shieldHit); sparks(b.x, b.y, b.color === "red" ? "#ff8080" : C.bright, 8, 80);
       } else if (!s.p.shield && boxDist(b.x, b.y, pb) < 3) {
-        b.dead = true; hurtPlayer(L2.bolt.dmg, b.x - b.vx * 0.05, b.y - b.vy * 0.05); sparks(b.x, b.y, b.color === "red" ? C.red : C.green, 8, 80);
+        b.dead = true; hurtPlayer(L2.bolt.dmg, b.x - b.vx * 0.05, b.y - b.vy * 0.05, true); sparks(b.x, b.y, b.color === "red" ? C.red : C.green, 8, 80);
       }
       if (b.life <= 0 || b.x < -30 || b.x > W + 30 || b.y < s.camY - 30 || b.y > s.camY + H + 30) b.dead = true;
     }
@@ -1072,7 +1075,7 @@ export function createGame(canvas, opts = {}) {
       if (s.p.shield && boxes.some((bx) => boxDist(pc.x, pc.y, bx) < T.shield.r)) {
         tw.dead = true; hitShield(L2.tornado.shieldHit); sparks(tw.x, cy, "#e6c088", 16, 110); sparks(tw.x, cy, "#9aa3ab", 10, 90);
       } else if (!s.p.shield && boxes.some((bx) => overlap(bx, pb))) {
-        tw.dead = true; hurtPlayer(L2.tornado.dmg, tw.x, cy); sparks(tw.x, cy, "#e6c088", 16, 110);
+        tw.dead = true; hurtPlayer(L2.tornado.dmg, tw.x, cy, true); sparks(tw.x, cy, "#e6c088", 16, 110);
       }
       if (tw.t > L2.tornado.life || tw.x < -30 || tw.x > W + 30 || tw.y < s.camY - 30 || tw.y > s.camY + H + 40) tw.dead = true;
     }
@@ -1171,12 +1174,14 @@ export function createGame(canvas, opts = {}) {
         h.x += Math.cos(mo.dir) * (P.lunge / P.strike) * dt; h.y += Math.sin(mo.dir) * (P.lunge / P.strike) * dt;
         if (!mo.hit && mo.t >= P.strike * 0.5) {
           mo.hit = true;
-          const j = mhJoint(h, arm);
-          if (s.p.shield && Math.hypot(j.x - pc.x, j.y - pc.y) < T.shield.r + 8) {
+          // the blow lands anywhere along the punch's reach, not only at the pixel where the fist is drawn
+          const j = mhJoint(h, arm), fx = chest.x + Math.cos(mo.dir) * P.reach, fy = chest.y + Math.sin(mo.dir) * P.reach;
+          const reachD = Math.min(boxDist(fx, fy, pb), boxDist(j.x, j.y, pb), boxDist((chest.x + fx) / 2, (chest.y + fy) / 2, pb));
+          if (s.p.shield && Math.min(Math.hypot(j.x - pc.x, j.y - pc.y), Math.hypot(fx - pc.x, fy - pc.y)) < T.shield.r + 8) {
             hitShield(P.shieldHit); sparks(j.x, j.y, C.bright, 10, 90); s.shake = Math.max(s.shake, 0.1);
             h.x -= Math.cos(mo.dir) * 14; h.y -= Math.sin(mo.dir) * 14;
-          } else if (!s.p.shield && boxDist(j.x, j.y, pb) < 9) {
-            hurtPlayer(P.dmg, h.x, chest.y); SFX("hit"); s.shake = Math.max(s.shake, 0.14);
+          } else if (!s.p.shield && reachD < 10) {
+            hurtPlayer(P.dmg, h.x, chest.y, true); SFX("hit"); s.shake = Math.max(s.shake, 0.14);
           }
         }
         if (mo.t >= P.strike) { mo.phase = "recover"; mo.t = 0; }
