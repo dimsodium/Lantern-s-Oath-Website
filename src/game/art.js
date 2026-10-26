@@ -268,7 +268,9 @@ function greenCopy(img) {
   for (let i = 0; i < a.length; i += 4) {
     if (!a[i + 3]) continue;
     const L = (a[i] * 0.3 + a[i + 1] * 0.59 + a[i + 2] * 0.11) / 255;
-    a[i] = Math.round(30 + 140 * L * L); a[i + 1] = Math.round(70 + 185 * L); a[i + 2] = Math.round(40 + 90 * L * L);
+    // the ring's green, #2fd85f (47, 216, 95): shaded darker in the funnel's shadows, lighter on its highlights
+    const k = 1 + 1.6 * (L - 0.32), hi = Math.max(0, k - 1) * 0.5;
+    a[i] = Math.min(255, Math.round(47 * Math.min(k, 1) + 208 * hi)); a[i + 1] = Math.min(255, Math.round(216 * Math.min(k, 1) + 39 * hi)); a[i + 2] = Math.min(255, Math.round(95 * Math.min(k, 1) + 160 * hi));
   }
   x.putImageData(d, 0, 0); return c;
 }

@@ -55,5 +55,12 @@ export const L2 = {
   // lock: once the Lantern is within `units` grid units (of `unit` px) of it, the tornado locks on and steers after him
   tornado: { grow: 2.5, growTo: 3, charge: 0.45, gap: 0.3, speed: 65,   /* 35% slower than the original 100 */ dmg: 12, shieldFrac: 0.5, life: 5, size: [40, 46],
     lock: { units: 8, unit: 16, turn: 2.2 },
+  // a tornado that misses (passes the Lantern by, or runs out its life) shrinks and fades over `time` s, drifting
+  // up toward the horizon as if it were moving off into the distance; it is harmless while it does
+  fade: { time: 2.5, rise: 22 },
+  // hold the ring beam (3) on a tornado for `beam` s (it stalls while the beam holds it) and it turns green and is
+  // deflected along the beam at `speed`; it then hits a Manhunter it runs into for `dmg` (before Level 2's boost).
+  // A deflected tornado never locks on to anyone. Off the beam, its charge drains at `decay` s per s.
+  deflect: { beam: 5, stall: 0.15, speed: 140, dmg: 12, decay: 1 },
     boxes: [[1, 0.67, 0, 0.48], [0.67, 0.28, -0.01, 0.29], [0.28, 0, 0.04, 0.16]] },
 };

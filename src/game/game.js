@@ -3,7 +3,7 @@
 // Usage: const game = createGame(canvas, { pilot, testBoss, onLevelEnd({ level, score, bossDefeated }), onQuit() });
 //        game.destroy() when leaving the page.
 import { W, H, C, T, BOSS_STOP, FLOW, L2 } from "./config.js";
-import { ART, FLASH, bigRat, bigRatFlash, shieldImg, hero, guideLantern, ottoParts, ottoDirs, tintCanvas, loadArt, mhDirs, tornadoImgs, boltImgs } from "./art.js";
+import { ART, FLASH, bigRat, bigRatFlash, shieldImg, hero, guideLantern, ottoParts, ottoDirs, tintCanvas, loadArt, mhDirs, tornadoImgs, tornadoGreen, boltImgs } from "./art.js";
 import { makeDesert, floorY } from "./desert.js";
 import { audio } from "../site/audio.js";
 
@@ -719,6 +719,8 @@ export function createGame(canvas, opts = {}) {
       for (const r of s.rats) if (r.hp > 0) { const dd = lineDist(ratBox(r)); if (dd < bestD) { bestD = dd; best = r; } }
       if (s.boss) { const dd = lineDist(bossBox(s.boss)); if (dd < bestD) { bestD = dd; best = s.boss; } }
       for (const h of s.hunters) if (hunterLive(h)) { const dd = lineDist(hunterBox(h)); if (dd < bestD) { bestD = dd; best = h; } }
+      // sand tornadoes (not ones already turned green) catch the beam too, anywhere along their funnel
+      for (const tw of s.tornados) if (!tw.green && !tw.fading) for (const bx of tornadoBoxes(tw)) { const dd = lineDist(bx); if (dd < bestD) { bestD = dd; best = tw; } }
       if (best && bestD < 420) {
         p.beamLen = bestD; p.beamHit = true; p.beamTarget = best;
         const tx = h.x + d[0] * bestD, ty = h.y + d[1] * bestD;
@@ -736,7 +738,8 @@ export function createGame(canvas, opts = {}) {
             s.fx.push({ x: tx, y: ty, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.2 + Math.random() * 0.25, color: Math.random() < 0.4 ? "#ffffff" : C.bright });
           }
         }
-        if (best.isHunter) { best.beamAcc = (best.beamAcc || 0) + T.beam.dps * dt; if (best.beamAcc >= 1) { best.beamAcc -= 1; hitHunter(best, 1, "beam"); } }
+        if (best.isTornado) beamTornado(best, d, dt);
+        else if (best.isHunter) { best.beamAcc = (best.beamAcc || 0) + T.beam.dps * dt; if (best.beamAcc >= 1) { best.beamAcc -= 1; hitHunter(best, 1, "beam"); } }
         else if (best === s.boss) { s.boss.beamAcc = (s.boss.beamAcc || 0) + T.beam.dps * dt; if (s.boss.beamAcc >= 1) { s.boss.beamAcc -= 1; hitBoss(1); } }
         else {
           const r = best;
@@ -1016,7 +1019,7 @@ export function createGame(canvas, opts = {}) {
 
   // ---------- Level 2: the desert and the two Manhunters ----------
   // After Otto Zundapt falls the sky turns to a desert. Two Manhunters fly in, one from each side. They take turns
-  // to punch (only one comes in for a body shot at a time), throw pairs of sand tornadoes and fire pairs of red and
+  // to punch (only one comes in for a body shot at a time), throw single sand tornadoes and fire pairs of red and
   // green laser shots, one from each hand: the left one fires left hand then right, the right one right then left.
   // A shot is thrown like a ki blast: the arm swings up to point at the Lantern and energy gathers in the open palm.
   const MH_W = 36, MH_H = 66;
@@ -1124,29 +1127,62 @@ export function createGame(canvas, opts = {}) {
       if (b.life <= 0 || b.x < -30 || b.x > W + 30 || b.y < s.camY - 30 || b.y > s.camY + H + 30) b.dead = true;
     }
     s.bolts = s.bolts.filter((b) => !b.dead);
+    const TD = L2.tornado, LK = TD.lock, DF = TD.deflect, FD = TD.fade;
     for (const tw of s.tornados) {
-      const sc = tornadoScale(tw);
-      // lock-on: once the Lantern comes within 8 grid units of any part of it (measured from its funnel, so a
-      // full-grown tornado reaches as far as a small one), it steers after him for the rest of its life
-      const LK = L2.tornado.lock, reach = LK.units * LK.unit, tcx = tw.x, tcy = tw.y - TH * sc / 2;
-      if (!tw.locked && tornadoBoxes(tw).some((bx) => boxDist(pc.x, pc.y, bx) <= reach)) { tw.locked = true; sparks(tcx, tcy, "#e6c088", 10, 80); }
-      if (tw.locked) {
-        const sp = Math.hypot(tw.vx, tw.vy) || L2.tornado.speed, cur = Math.atan2(tw.vy, tw.vx), want = Math.atan2(pc.y - tcy, pc.x - tcx);
-        const da = Math.atan2(Math.sin(want - cur), Math.cos(want - cur)), a = cur + Math.max(-LK.turn * dt, Math.min(LK.turn * dt, da));
-        tw.vx = Math.cos(a) * sp; tw.vy = Math.sin(a) * sp;
+      const beamed = s.t - tw.beamAt < 0.05;
+      if (!beamed) tw.beamT = Math.max(0, tw.beamT - DF.decay * dt);
+      if (tw.fading) {
+        // missed: shrinking and fading as it moves off into the distance, drifting up toward the horizon
+        tw.fade += dt / FD.time;
+        tw.t += dt; tw.x += tw.vx * 0.5 * dt; tw.y += (tw.vy * 0.3 - FD.rise) * dt;
+        if (tw.fade >= 1) tw.dead = true;
+        continue;
       }
-      tw.t += dt; tw.x += tw.vx * dt; tw.y += tw.vy * dt;
-      for (let i = 0; i < Math.ceil(sc); i++) if (Math.random() < 0.5) s.fx.push({ x: tw.x + (Math.random() - 0.5) * 16 * sc, y: tw.y - Math.random() * 20 * sc, vx: (Math.random() - 0.5) * 40 * sc, vy: -10 - Math.random() * 20 * sc, life: 0.3, color: Math.random() < 0.5 ? "#e6c088" : "#b06a40" });
-      const cy = tw.y - TH * sc / 2, boxes = tornadoBoxes(tw);
-      const overlap = (a, b) => Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2;
-      if (s.p.shield && boxes.some((bx) => boxDist(pc.x, pc.y, bx) < T.shield.r)) {
-        // a tornado takes half the forcefield's full durability
-        tw.dead = true; hitShield(T.shield.hp * L2.tornado.shieldFrac); sparks(tw.x, cy, "#e6c088", 16, 110); sparks(tw.x, cy, "#9aa3ab", 10, 90);
-      } else if (!s.p.shield && boxes.some((bx) => overlap(bx, pb))) {
-        tw.dead = true; hurtPlayer(L2.tornado.dmg, tw.x, cy, true); sparks(tw.x, cy, "#e6c088", 16, 110);
+      const sc = tornadoScale(tw), tcx = tw.x, tcy = tw.y - TH * sc / 2;
+      if (tw.green) {
+        // deflected by the ring beam: flies straight (it never locks on to anyone) and hits a Manhunter it runs into
+        tw.t += dt; tw.age += dt; tw.x += tw.vx * dt; tw.y += tw.vy * dt;
+        if (Math.random() < 0.6) s.fx.push({ x: tw.x + (Math.random() - 0.5) * 16 * sc, y: tw.y - Math.random() * 30 * sc, vx: (Math.random() - 0.5) * 40, vy: -10 - Math.random() * 20, life: 0.3, color: Math.random() < 0.5 ? C.green : C.bright });
+        const boxes = tornadoBoxes(tw);
+        for (const h of s.hunters) {
+          if (!hunterLive(h)) continue;
+          const hb = hunterBox(h);
+          if (boxes.some((bx) => Math.abs(bx.x - hb.x) < (bx.w + hb.w) / 2 + 4 && Math.abs(bx.y - hb.y) < (bx.h + hb.h) / 2 + 4)) {
+            tw.dead = true; hitHunter(h, DF.dmg, "tornado"); SFX("boulderHit");
+            sparks(hb.x, hb.y, C.green, 20, 130); sparks(hb.x, hb.y, "#e6c088", 10, 100); s.shake = Math.max(s.shake, 0.15);
+            break;
+          }
+        }
+      } else {
+        // lock-on: once the Lantern comes within 8 grid units of any part of it (measured from its funnel, so a
+        // full-grown tornado reaches as far as a small one), it steers after him until it misses
+        if (!tw.locked && tornadoBoxes(tw).some((bx) => boxDist(pc.x, pc.y, bx) <= LK.units * LK.unit)) { tw.locked = true; sparks(tcx, tcy, "#e6c088", 10, 80); }
+        if (tw.locked && !beamed) {
+          const sp = Math.hypot(tw.vx, tw.vy) || TD.speed, cur = Math.atan2(tw.vy, tw.vx), want = Math.atan2(pc.y - tcy, pc.x - tcx);
+          const da = Math.atan2(Math.sin(want - cur), Math.cos(want - cur)), a = cur + Math.max(-LK.turn * dt, Math.min(LK.turn * dt, da));
+          tw.vx = Math.cos(a) * sp; tw.vy = Math.sin(a) * sp;
+          // gone past him (heading away and more than a body's width off): a miss
+          const dot = tw.vx * (pc.x - tcx) + tw.vy * (pc.y - tcy);
+          if (dot < 0 && Math.hypot(pc.x - tcx, pc.y - tcy) > 24 + 10 * sc) tw.missed = true;
+        }
+        // held in the beam it stalls (and its clock stops); a near-ready tornado shudders
+        const k = beamed ? DF.stall : 1;
+        tw.t += dt; if (!beamed) tw.age += dt;
+        tw.x += tw.vx * k * dt; tw.y += tw.vy * k * dt;
+        for (let i = 0; i < Math.ceil(sc); i++) if (Math.random() < 0.5) s.fx.push({ x: tw.x + (Math.random() - 0.5) * 16 * sc, y: tw.y - Math.random() * 20 * sc, vx: (Math.random() - 0.5) * 40 * sc, vy: -10 - Math.random() * 20 * sc, life: 0.3, color: Math.random() < 0.5 ? "#e6c088" : "#b06a40" });
+        const cy = tw.y - TH * sc / 2, boxes = tornadoBoxes(tw);
+        const overlap = (a, b) => Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2;
+        if (s.p.shield && boxes.some((bx) => boxDist(pc.x, pc.y, bx) < T.shield.r)) {
+          // a tornado takes half the forcefield's full durability
+          tw.dead = true; hitShield(T.shield.hp * TD.shieldFrac); sparks(tw.x, cy, "#e6c088", 16, 110); sparks(tw.x, cy, "#9aa3ab", 10, 90);
+        } else if (!s.p.shield && boxes.some((bx) => overlap(bx, pb))) {
+          tw.dead = true; hurtPlayer(TD.dmg, tw.x, cy, true); sparks(tw.x, cy, "#e6c088", 16, 110);
+        }
+        if (!tw.dead && (tw.missed || tw.age > TD.life)) { tw.fading = true; tw.fade = 0; tw.fadeFrom = sc; }
       }
-      const hw = TW * sc / 2;   // gone only once it's fully off screen, whatever size it has grown to
-      if (tw.t > L2.tornado.life || tw.x < -hw - 10 || tw.x > W + hw + 10 || tw.y < s.camY - 30 || tw.y > s.camY + H + TH * sc) tw.dead = true;
+      const sc2 = tornadoScale(tw), hw = TW * sc2 / 2;   // gone only once it's fully off screen, whatever size it has grown to
+      if (tw.green && tw.age > TD.life) { tw.fading = true; tw.fade = 0; tw.fadeFrom = sc2; }
+      if (tw.x < -hw - 10 || tw.x > W + hw + 10 || tw.y < s.camY - 30 || tw.y > s.camY + H + TH * sc2) tw.dead = true;
     }
     s.tornados = s.tornados.filter((t) => !t.dead);
     // both down: the level is won
@@ -1161,11 +1197,29 @@ export function createGame(canvas, opts = {}) {
   // size, and swaying with it exactly as it is drawn.
   // How big a tornado is right now: its thrown size at first, growing (easing out) to growTo x a Manhunter's height.
   const TORNADO_MAX = L2.tornado.growTo * MH_H / TH;
-  const tornadoScale = (tw) => { const k = Math.min(1, tw.t / L2.tornado.grow); return 1 + (TORNADO_MAX - 1) * (1 - (1 - k) * (1 - k)); };
+  const tornadoScale = (tw) => {
+    if (tw.fading) return tw.fadeFrom * (1 - 0.85 * tw.fade);   // shrinking into the distance
+    const k = Math.min(1, tw.t / L2.tornado.grow); return 1 + (TORNADO_MAX - 1) * (1 - (1 - k) * (1 - k));
+  };
+  // The ring beam on a tornado: it stalls while held; after deflect.beam seconds it turns green and is sent off
+  // along the beam, no longer locked on to anyone.
+  function beamTornado(tw, d, dt) {
+    const DF = L2.tornado.deflect;
+    tw.beamAt = s.t; tw.beamT += dt;
+    if (tw.beamT >= DF.beam) {
+      tw.green = true; tw.locked = false; tw.missed = false; tw.age = 0;
+      tw.vx = d[0] * DF.speed; tw.vy = d[1] * DF.speed;
+      const sc = tornadoScale(tw), cy = tw.y - TH * sc / 2;
+      sparks(tw.x, cy, C.green, 24, 140); sparks(tw.x, cy, "#ffffff", 8, 110);
+      s.rings.push({ x: tw.x, y: cy, r: 6, life: 0.35, sp: 200, thin: true, color: C.green });
+      s.shake = Math.max(s.shake, 0.12); SFX("boulderHit");
+    }
+  }
   function tornadoBoxes(tw) {
     const sc = tornadoScale(tw), w = TW * sc, h = TH * sc, wob = Math.round(Math.sin(tw.t * 9) * 1.5 * sc);
     return L2.tornado.boxes.map(([top, bot, cx, hw]) => ({ x: tw.x + wob + cx * w, y: tw.y - (top + bot) / 2 * h, w: hw * 2 * w, h: (top - bot) * h }));
   }
+  const mhDirOf = (a) => { const d = dirOf(a); return d === "right" || d === "left" ? (Math.sin(a) < 0 ? "up" : "down") + d : d; };
   function updateHunter(h, dt, pc, pb) {
     h.t += dt; h.flash = Math.max(0, h.flash - dt);
     const P = L2.punch;
@@ -1179,10 +1233,11 @@ export function createGame(canvas, opts = {}) {
       return;
     }
     const chest = { x: h.x, y: h.y - (h.lift ?? L2.lift) - 40 };
-    // always tracking the Lantern: the facing eases round and picks the nearest of eight views
+    // always tracking the Lantern: the facing eases round and picks the nearest view. There are no straight
+    // side-on views: facing exactly left or right, he shows the three-quarter view on the side he leans toward.
     const ta = Math.atan2(pc.y - chest.y, pc.x - chest.x);
     { const da = Math.atan2(Math.sin(ta - h.faceA), Math.cos(ta - h.faceA)); h.faceA += da * Math.min(1, dt * 8); }
-    if (h.state !== "stun") h.dir = dirOf(h.faceA);
+    if (h.state !== "stun") h.dir = mhDirOf(h.faceA);
     let tg = { la: 0, ra: 0, lx: 0, rx: 0, hy: 0 }, ease = 10;
     const px0 = h.x, py0 = h.y;
     if (h.state === "stun") {
@@ -1225,7 +1280,7 @@ export function createGame(canvas, opts = {}) {
           s.bolts.push({ x: j.x, y: j.y, vx: Math.cos(a) * A.speed, vy: Math.sin(a) * A.speed, color: arm === "armL" ? "red" : "green", life: 3 });
           SFX("bolt");
         } else {
-          s.tornados.push({ x: j.x, y: j.y + TH / 2, vx: Math.cos(a) * A.speed, vy: Math.sin(a) * A.speed, t: 0 });
+          s.tornados.push({ isTornado: true, x: j.x, y: j.y + TH / 2, vx: Math.cos(a) * A.speed, vy: Math.sin(a) * A.speed, t: 0, age: 0, beamT: 0, beamAt: -9 });
           SFX("tornado");
         }
         sparks(j.x, j.y, q.kind === "laser" ? (arm === "armL" ? C.red : C.green) : "#e6c088", 8, 90);
@@ -1294,7 +1349,9 @@ export function createGame(canvas, opts = {}) {
     for (const key in tg) h.pose[key] += (tg[key] - h.pose[key]) * k;
   }
   function drawHunter(h) {
-    const m = mhDirs[h.dir] || mhDirs.down;
+    // the "right"/"left" entries only hold the side-on stun frames; anything else drawn side-on uses the 3/4 front view
+    const fr0 = h.state === "stun" && h.frame;
+    const m = (fr0 ? mhDirs[h.dir] : mhDirs[h.dir === "right" ? "downright" : h.dir === "left" ? "downleft" : h.dir]) || mhDirs.down;
     if (!m) return;
     const bob = h.state === "dead" ? 0 : Math.sin(s.t * 3 + h.side) * 1.5;
     h.lift = h.state === "stun" ? (h.stun.t < L2.guard.stagger ? Math.round(L2.lift * (1 - h.stun.t / L2.guard.stagger)) : 0) : Math.round(L2.lift + bob);   // knocked out of the air
@@ -1376,9 +1433,18 @@ export function createGame(canvas, opts = {}) {
     for (const tw of s.tornados) {
       const img = tornadoImgs[Math.floor(tw.t * 14) % tornadoImgs.length];
       if (!img || !img.complete) continue;
-      const sc = tornadoScale(tw), w = Math.round(img.width * sc), h = Math.round(img.height * sc), wob = Math.round(Math.sin(tw.t * 9) * 1.5 * sc);
+      const fi = Math.floor(tw.t * 14) % tornadoImgs.length, gimg = tornadoGreen[fi];
+      const sc = tornadoScale(tw), w = Math.round(img.width * sc), h = Math.round(img.height * sc);
+      // charging in the beam it shudders harder as it nears turning
+      const ch = tw.green ? 0 : tw.beamT / L2.tornado.deflect.beam;
+      const wob = Math.round(Math.sin(tw.t * 9) * 1.5 * sc + (ch > 0 ? (Math.random() - 0.5) * 3 * ch * sc : 0));
+      const X0 = Math.round(tw.x - w / 2 + wob), Y0 = Math.round(tw.y - h);
+      if (tw.fading) ctx.globalAlpha = Math.max(0, 1 - tw.fade);
       ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(Math.round(tw.x), Math.round(tw.y), 5 * sc, 1.5 * sc, 0, 0, 7); ctx.fill();
-      ctx.drawImage(img, Math.round(tw.x - w / 2 + wob), Math.round(tw.y - h), w, h);   // grows up from where it touches the sand
+      ctx.drawImage(tw.green && gimg ? gimg : img, X0, Y0, w, h);   // grows up from where it touches the sand
+      // turning green bit by bit while the beam holds it
+      if (!tw.green && ch > 0 && gimg) { ctx.globalAlpha = 0.85 * ch; ctx.drawImage(gimg, X0, Y0, w, h); }
+      ctx.globalAlpha = 1;
     }
     for (const b of s.bolts) {
       const img = boltImgs[b.color];
