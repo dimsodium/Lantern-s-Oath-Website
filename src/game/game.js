@@ -1153,6 +1153,11 @@ export function createGame(canvas, opts = {}) {
             break;
           }
         }
+        // like a sand tornado that misses the Lantern: once no Manhunter is left ahead of it (it has gone past
+        // them, or was sent off where none stands), it shrinks and fades off into the distance
+        if (!tw.dead && tw.age > 0.4 && !s.hunters.some((h) => hunterLive(h) && tw.vx * (h.x - tcx) + tw.vy * (h.y - 33 - tcy) > 0)) {
+          tw.fading = true; tw.fade = 0; tw.fadeFrom = sc;
+        }
       } else {
         // lock-on: once the Lantern comes within 8 grid units of any part of it (measured from its funnel, so a
         // full-grown tornado reaches as far as a small one), it steers after him until it misses
