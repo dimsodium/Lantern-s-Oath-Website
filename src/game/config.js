@@ -50,6 +50,7 @@ export const L2 = {
   bolt: { charge: 0.38, gap: 0.22, speed: 270, dmg: 8, shieldHit: 14 },
   // size: the sprite in pixels. boxes: its funnel as fractions of that size, measured from the sprite
   // [top, bottom, centre x offset, half width] with 0 = bottom tip, 1 = top
-  tornado: { charge: 0.45, gap: 0.3, speed: 65,   /* 35% slower than the original 100 */ dmg: 12, shieldHit: 26, life: 5, size: [40, 46],
+  // after leaving the hand a tornado grows (easing out over `grow` s) until it is growTo x a Manhunter's height
+  tornado: { grow: 2.5, growTo: 3, charge: 0.45, gap: 0.3, speed: 65,   /* 35% slower than the original 100 */ dmg: 12, shieldHit: 26, life: 5, size: [40, 46],
     boxes: [[1, 0.67, 0, 0.48], [0.67, 0.28, -0.01, 0.29], [0.28, 0, 0.04, 0.16]] },
 };

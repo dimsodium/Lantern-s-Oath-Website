@@ -1126,15 +1126,17 @@ export function createGame(canvas, opts = {}) {
     s.bolts = s.bolts.filter((b) => !b.dead);
     for (const tw of s.tornados) {
       tw.t += dt; tw.x += tw.vx * dt; tw.y += tw.vy * dt;
-      if (Math.random() < 0.5) s.fx.push({ x: tw.x + (Math.random() - 0.5) * 16, y: tw.y - Math.random() * 20, vx: (Math.random() - 0.5) * 40, vy: -10 - Math.random() * 20, life: 0.3, color: Math.random() < 0.5 ? "#e6c088" : "#b06a40" });
-      const cy = tw.y - TH / 2, boxes = tornadoBoxes(tw);
+      const sc = tornadoScale(tw);
+      for (let i = 0; i < Math.ceil(sc); i++) if (Math.random() < 0.5) s.fx.push({ x: tw.x + (Math.random() - 0.5) * 16 * sc, y: tw.y - Math.random() * 20 * sc, vx: (Math.random() - 0.5) * 40 * sc, vy: -10 - Math.random() * 20 * sc, life: 0.3, color: Math.random() < 0.5 ? "#e6c088" : "#b06a40" });
+      const cy = tw.y - TH * sc / 2, boxes = tornadoBoxes(tw);
       const overlap = (a, b) => Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2;
       if (s.p.shield && boxes.some((bx) => boxDist(pc.x, pc.y, bx) < T.shield.r)) {
         tw.dead = true; hitShield(L2.tornado.shieldHit); sparks(tw.x, cy, "#e6c088", 16, 110); sparks(tw.x, cy, "#9aa3ab", 10, 90);
       } else if (!s.p.shield && boxes.some((bx) => overlap(bx, pb))) {
         tw.dead = true; hurtPlayer(L2.tornado.dmg, tw.x, cy, true); sparks(tw.x, cy, "#e6c088", 16, 110);
       }
-      if (tw.t > L2.tornado.life || tw.x < -30 || tw.x > W + 30 || tw.y < s.camY - 30 || tw.y > s.camY + H + 40) tw.dead = true;
+      const hw = TW * sc / 2;   // gone only once it's fully off screen, whatever size it has grown to
+      if (tw.t > L2.tornado.life || tw.x < -hw - 10 || tw.x > W + hw + 10 || tw.y < s.camY - 30 || tw.y > s.camY + H + TH * sc) tw.dead = true;
     }
     s.tornados = s.tornados.filter((t) => !t.dead);
     // both down: the level is won
@@ -1147,9 +1149,12 @@ export function createGame(canvas, opts = {}) {
   }
   // The tornado's hitbox: three stacked boxes that follow its funnel (wide top, narrow tip), scaled from the sprite
   // size, and swaying with it exactly as it is drawn.
+  // How big a tornado is right now: its thrown size at first, growing (easing out) to growTo x a Manhunter's height.
+  const TORNADO_MAX = L2.tornado.growTo * MH_H / TH;
+  const tornadoScale = (tw) => { const k = Math.min(1, tw.t / L2.tornado.grow); return 1 + (TORNADO_MAX - 1) * (1 - (1 - k) * (1 - k)); };
   function tornadoBoxes(tw) {
-    const wob = Math.round(Math.sin(tw.t * 9) * 1.5);
-    return L2.tornado.boxes.map(([top, bot, cx, hw]) => ({ x: tw.x + wob + cx * TW, y: tw.y - (top + bot) / 2 * TH, w: hw * 2 * TW, h: (top - bot) * TH }));
+    const sc = tornadoScale(tw), w = TW * sc, h = TH * sc, wob = Math.round(Math.sin(tw.t * 9) * 1.5 * sc);
+    return L2.tornado.boxes.map(([top, bot, cx, hw]) => ({ x: tw.x + wob + cx * w, y: tw.y - (top + bot) / 2 * h, w: hw * 2 * w, h: (top - bot) * h }));
   }
   function updateHunter(h, dt, pc, pb) {
     h.t += dt; h.flash = Math.max(0, h.flash - dt);
@@ -1360,9 +1365,9 @@ export function createGame(canvas, opts = {}) {
     for (const tw of s.tornados) {
       const img = tornadoImgs[Math.floor(tw.t * 14) % tornadoImgs.length];
       if (!img || !img.complete) continue;
-      const wob = Math.round(Math.sin(tw.t * 9) * 1.5);
-      ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.fillRect(Math.round(tw.x - 5), Math.round(tw.y), 10, 2);
-      ctx.drawImage(img, Math.round(tw.x - img.width / 2 + wob), Math.round(tw.y - img.height));
+      const sc = tornadoScale(tw), w = Math.round(img.width * sc), h = Math.round(img.height * sc), wob = Math.round(Math.sin(tw.t * 9) * 1.5 * sc);
+      ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(Math.round(tw.x), Math.round(tw.y), 5 * sc, 1.5 * sc, 0, 0, 7); ctx.fill();
+      ctx.drawImage(img, Math.round(tw.x - w / 2 + wob), Math.round(tw.y - h), w, h);   // grows up from where it touches the sand
     }
     for (const b of s.bolts) {
       const img = boltImgs[b.color];
