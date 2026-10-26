@@ -259,6 +259,19 @@ export function loadArt() {
 // matching right-facing one mirrored: what was on screen-left moves to screen-right, so the arms swap names.
 export const mhDirs = {};
 export const tornadoImgs = [];
+// the same frames recoloured green (keeping their light and shade) for a tornado turned by the ring beam
+export const tornadoGreen = [];
+function greenCopy(img) {
+  const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+  const x = c.getContext("2d"); x.drawImage(img, 0, 0);
+  const d = x.getImageData(0, 0, c.width, c.height), a = d.data;
+  for (let i = 0; i < a.length; i += 4) {
+    if (!a[i + 3]) continue;
+    const L = (a[i] * 0.3 + a[i + 1] * 0.59 + a[i + 2] * 0.11) / 255;
+    a[i] = Math.round(30 + 140 * L * L); a[i + 1] = Math.round(70 + 185 * L); a[i + 2] = Math.round(40 + 90 * L * L);
+  }
+  x.putImageData(d, 0, 0); return c;
+}
 export const boltImgs = {};
 function loadLevel2Art() {
   const W = MANHUNTER.meta.size[0];
@@ -284,6 +297,6 @@ function loadLevel2Art() {
       im.src = urls[k];
     }
   }
-  TORNADO.forEach((u, i) => { const im = new Image(); im.src = u; tornadoImgs[i] = im; });
+  TORNADO.forEach((u, i) => { const im = new Image(); im.onload = () => { tornadoGreen[i] = greenCopy(im); }; im.src = u; tornadoImgs[i] = im; });
   for (const k of Object.keys(BOLTS)) { const im = new Image(); im.src = BOLTS[k]; boltImgs[k] = im; }
 }
