@@ -58,6 +58,8 @@ export const L2 = {
   // a tornado that misses (passes the Lantern by, or runs out its life) shrinks and fades over `time` s, drifting
   // up toward the horizon as if it were moving off into the distance; it is harmless while it does
   fade: { time: 2.5, rise: 22 },
+  // after throwing a tornado a Manhunter is rooted to the spot for this many seconds (he still turns to track you)
+  root: 3,
   // hold the ring beam (3) on a tornado for `beam` s (4) (it stalls while the beam holds it) and it turns green and is
   // deflected along the beam at `speed`; it then hits a Manhunter it runs into for `dmg` (before Level 2's boost).
   // A deflected tornado never locks on to anyone. Off the beam, its charge drains at `decay` s per s.

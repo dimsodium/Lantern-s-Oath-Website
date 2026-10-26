@@ -1221,7 +1221,7 @@ export function createGame(canvas, opts = {}) {
   }
   const mhDirOf = (a) => { const d = dirOf(a); return d === "right" || d === "left" ? (Math.sin(a) < 0 ? "up" : "down") + d : d; };
   function updateHunter(h, dt, pc, pb) {
-    h.t += dt; h.flash = Math.max(0, h.flash - dt);
+    h.t += dt; h.flash = Math.max(0, h.flash - dt); h.rooted = Math.max(0, (h.rooted || 0) - dt);
     const P = L2.punch;
     if (h.state === "dead") {
       if (Math.random() < 0.6) sparks(h.x + (Math.random() - 0.5) * 30, h.y - 10 - Math.random() * 56, Math.random() < 0.5 ? C.red : "#5a8cff", 4, 80);
@@ -1261,9 +1261,10 @@ export function createGame(canvas, opts = {}) {
       const lo = h.side < 0 ? 50 : W / 2 + 40, hi = h.side < 0 ? W / 2 - 40 : W - 50;
       if (!h.goal || Math.hypot(h.goal.x - h.x, h.goal.y - h.y) < 6) h.goal = { x: lo + Math.random() * (hi - lo), y: s.camY + L2_FLOOR + 20 + Math.random() * (H - L2_FLOOR - 50) };
       const gx = h.goal.x - h.x, gy = h.goal.y - h.y, gd = Math.hypot(gx, gy) || 1;
-      h.x += (gx / gd) * Math.min(gd, L2.speed * dt); h.y += (gy / gd) * Math.min(gd, L2.speed * dt);
-      if (h.t >= h.wait && myTurn(h) && !(s.meleeOwner && s.meleeOwner !== h)) {
-        const next = CYCLE[s.l2.move % CYCLE.length];   // the same move the other one just made (or leads the next)
+      // rooted after throwing a tornado: he stands where he is (and can't rush in) until it wears off
+      if (!h.rooted) { h.x += (gx / gd) * Math.min(gd, L2.speed * dt); h.y += (gy / gd) * Math.min(gd, L2.speed * dt); }
+      const next = CYCLE[s.l2.move % CYCLE.length];   // the same move the other one just made (or leads the next)
+      if (h.t >= h.wait && myTurn(h) && !(s.meleeOwner && s.meleeOwner !== h) && !(h.rooted && next === "melee")) {
         s.l2.turn = h.side; h.t = 0;
         if (next === "melee") { h.state = "melee"; s.meleeOwner = h; h.guard = L2.guard.hits; h.guardBeam = 0; h.melee = { phase: "approach", t: 0, arm: h.hand = h.hand === "armL" ? "armR" : "armL", hit: false }; }
         // one tornado per attack (from his first hand); lasers still come in pairs
@@ -1288,7 +1289,7 @@ export function createGame(canvas, opts = {}) {
         if (arm === "armL") tg.lx = -3; else tg.rx = -3;
       } else if (q.phase === "recoil" && q.t >= A.gap) {
         q.i++; q.t = 0; q.phase = "charge";
-        if (q.i >= q.hands.length) { h.seq = null; h.state = "rest"; h.t = 0; h.wait = L2.rest[0] + Math.random() * (L2.rest[1] - L2.rest[0]); endTurn(h); }
+        if (q.i >= q.hands.length) { if (q.kind === "tornado") h.rooted = L2.tornado.root; h.seq = null; h.state = "rest"; h.t = 0; h.wait = L2.rest[0] + Math.random() * (L2.rest[1] - L2.rest[0]); endTurn(h); }
         else SFX("mhCharge");
       }
       ease = 16;
