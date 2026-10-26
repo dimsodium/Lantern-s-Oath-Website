@@ -32,7 +32,7 @@ Signed out, `#play` sends you to `#login`. Signed in (account or guest), `#login
 | 1 | Construct fist: a half-circle sweep |
 | 2 | Construct boulder: smashes through everything (2 s cooldown) |
 | 3 (held) | Ring beam |
-| 4 | Construct rope: lassos up to four rats and reels them in (3 s cooldown) |
+| 4 | Construct rope: lassos up to four rats and reels them in; with no rats in reach, ties up one boss where he stands for 2 s (up to 3 s while 4 is held). No damage (3 s cooldown) |
 | V | Beware My Power: needs a full meter and a full ring |
 | G (tap / hold) | Tap: recite the Oath and fully recharge over ~6 s. Hold: quick top-up. |
 | P / Esc | Pause menu (Options, Controls, Settings) |

@@ -17,7 +17,9 @@ export const T = {
   boulder: { cost: 100, cd: 0.5, cooldown: 2, speed: 165, dmg: 4, knock: 130, size: 4 },
   beam: { start: 3, drain: 15, dps: 8.82 },
   shield: { start: 3, drain: 6.09, r: 26, hp: 222.75,   /* forcefield health: 148.5 + 50% */ ratHit: 20, sawHit: 25, laserDps: 30, touchDps: 25, mend: 12, broken: 2.5 },
-  rope: { cost: 52.8, cd: 0.5, cooldown: 3, max: 4, whirl: 0.24, reach: 0.3, form: 0.24, pull: 0.75, loop: 10, hold: 1.4 },
+  // the lasso does no damage. Rats (up to 4) are reeled in; with no rats in reach it ties up one boss (Otto or one
+  // Manhunter) where he stands: bossHold s on a tap, up to bossHoldMax s while the lasso key stays held
+  rope: { cost: 52.8, cd: 0.5, cooldown: 3, max: 4, whirl: 0.24, reach: 0.3, form: 0.24, pull: 0.75, loop: 10, hold: 1.4, bossHold: 2, bossHoldMax: 3 },
   bmp: { perKill: 9, perBossHp: 0.9, passive: 0.6 },
   suitUp: { r: 120, dmg: 3, bossDmg: 5, knock: 220 },   // the burst when he suits back up from human form
   rat: { hp: 3.4, speed: 40, reach: 17, windup: 0.38, dmg: 10, cd: 1.0 },

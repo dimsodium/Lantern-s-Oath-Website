@@ -263,6 +263,40 @@ export function createGame(canvas, opts = {}) {
     s.banner = { text: "OTTO ZUNDAPT", t: 2.2, sub: "MINI-BOSS" };
   }
 
+  // ---------- Lasso on a boss ----------
+  // Only ever one boss at a time: Otto, or the nearest single Manhunter that is free (not stunned, entering or down)
+  function lassoTarget() {
+    const p = s.p, cands = [];
+    if (s.boss && !s.dialog && !["enter", "talk", "dead"].includes(s.boss.state)) cands.push(s.boss);
+    for (const h of s.hunters) if (hunterLive(h) && h.state !== "stun" && h.state !== "held") cands.push(h);
+    return cands.sort((a, b) => dist(a, p) - dist(b, p))[0] || null;
+  }
+  function holdBoss(b) {
+    b.held = true;
+    if (b.isHunter) {
+      const hadTurn = s.l2 && s.l2.turn === b.side && b.state !== "rest";
+      b.seq = null; b.melee = null; b.state = "held"; b.t = 0;
+      if (s.meleeOwner === b) s.meleeOwner = null;
+      if (hadTurn) endTurn(b);
+    } else {
+      // whatever Otto was doing stops: no saw leaves his hand, the laser cuts out, the crush is called off
+      b.throw = null; b.laser = false; b.crush = null; b.chargeSnd = false;
+      if (b.state !== "rest") { b.state = "rest"; b.next = b.next || "triple"; }
+      b.t = 0; b.wait = 0.8;
+    }
+    const bx = b.isHunter ? hunterBox(b) : bossBox(b);
+    sparks(bx.x, bx.y, C.bright, 12, 90);
+  }
+  function releaseBoss(b) {
+    b.held = false;
+    if (b.isHunter && b.state === "held") { b.state = "rest"; b.t = 0; b.wait = 0.5; }
+    else if (!b.isHunter) { b.t = 0; b.wait = 0.6; }
+    const bx = b.isHunter ? hunterBox(b) : bossBox(b);
+    sparks(bx.x, bx.y, C.bright, 18, 140); sparks(bx.x, bx.y, "#ffffff", 8, 110);   // he bursts out of the loop
+    s.rings.push({ x: bx.x, y: bx.y, r: 6, life: 0.3, sp: 170, thin: true });
+    s.shake = Math.max(s.shake, 0.1); SFX("shieldBreak");
+  }
+
   // ---------- Beware My Power ----------
   function bewareMyPower() {
     const p = s.p;
@@ -376,7 +410,8 @@ export function createGame(canvas, opts = {}) {
     // Tap G (press and let go) to recite the Lantern's Oath; hold G for a quick recharge. G again stops the oath.
     // One ability at a time: a punch, fist, rope, beam or forcefield has to finish (or be let go) before another
     // starts, and recharging (G) and Beware My Power wait for it too. A thrown boulder counts until it leaves his hand.
-    const abilityFree = () => !p.punch && !p.rope && !p.beam && !p.shield && !(p.boulderCd > T.boulder.cooldown - T.boulder.cd);
+    // (a boss held in the lasso doesn't count: tying him up is the moment to hit him)
+    const abilityFree = () => !p.punch && !(p.rope && !(p.rope.boss && p.rope.held)) && !p.beam && !p.shield && !(p.boulderCd > T.boulder.cooldown - T.boulder.cd);
     p.rechargeLock = Math.max(0, (p.rechargeLock || 0) - dt);
     const gHeld = !!(keys.has("g") || touchBtn.charge || pressed.has("g"));   // pressed catches a tap shorter than a frame
     if (gHeld && !p.gPrev) { p.gHeldT = 0; p.gSwallow = !!p.oath; if (p.oath) { p.oath = null; s.oathEcho = 0.6; } }
@@ -469,7 +504,13 @@ export function createGame(canvas, opts = {}) {
       // The lasso catches at most four rats: the closest ones on screen
       const grabbed = s.rats.filter((r) => r.hp > 0 && r.y > s.camY - 10 && r.y < s.camY + H + 20 && r.x > -20 && r.x < W + 20)
         .sort((a, b) => dist(a, p) - dist(b, p)).slice(0, T.rope.max);
-      if (grabbed.length && useCharge(T.rope.cost)) {
+      // no rats in reach: it can tie up one boss instead, the nearest (Otto, or a single Manhunter)
+      const bossT = grabbed.length ? null : lassoTarget();
+      if (bossT && useCharge(T.rope.cost)) {
+        ringFlash();
+        p.rope = { t: 0, boss: bossT, holdT: 0, held: false, list: [] };
+        p.cd = T.rope.cd; p.ropeCd = T.rope.cooldown; SFX("rope");
+      } else if (grabbed.length && useCharge(T.rope.cost)) {
         const cx = W / 2, cy = s.camY + H / 2 + 10;
         ringFlash();
         p.rope = { t: 0, cx, cy, end: grabbed.length > 1 ? 16 : 0, list: grabbed.map((r) => ({ r, sx: r.x, sy: r.y, a: Math.atan2(r.y - cy, r.x - cx) })) };
@@ -601,7 +642,22 @@ export function createGame(canvas, opts = {}) {
     }
 
     // Rope: lassos every rat on screen and drags them all into the middle
-    if (p.rope) {
+    if (p.rope && p.rope.boss) {
+      // a boss in the lasso: the loop flies out, drops over him and cinches; he's held where he is for
+      // bossHold seconds, or up to bossHoldMax while the lasso key stays held. Let go late and he breaks free.
+      const R = T.rope, ro = p.rope, b = ro.boss; ro.t += dt;
+      const caught = R.whirl + R.reach + R.form * 0.6;
+      const gone = b.isHunter ? (b.state === "dead" || b.gone || b.state === "stun") : (s.boss !== b || b.state === "dead");
+      if (gone) { if (b.held) b.held = false; p.rope = null; }
+      else if (ro.t >= caught) {
+        if (!ro.held) { ro.held = true; holdBoss(b); SFX("cinch"); }
+        ro.holdT += dt;
+        const holding = keys.has("4") || touchBtn.rope;
+        if ((!holding && ro.holdT >= R.bossHold) || ro.holdT >= R.bossHoldMax) { releaseBoss(b); p.rope = null; }
+        else if (Math.random() < dt * 6) { const bx = b.isHunter ? hunterBox(b) : bossBox(b); sparks(bx.x + (Math.random() - 0.5) * bx.w, bx.y, C.bright, 2, 40); }   // straining at the rope
+      }
+    }
+    if (p.rope && !p.rope.boss) {
       const R = T.rope, ro = p.rope; ro.t += dt;
       if (!ro.cinched && ro.t >= R.whirl + R.reach + R.form * 0.6) { ro.cinched = true; SFX("cinch"); }
       // 1) he whirls a lasso over his ring hand, 2) a loop flies out to every rat, 3) it drops over each one and
@@ -822,6 +878,7 @@ export function createGame(canvas, opts = {}) {
       }
       return;
     }
+    if (b.held) { b.laser = false; b.throw = null; b.crush = null; return; }   // tied up in the lasso: he can only struggle
     const rage = b.hp < b.max / 2 ? 1.3 : 1;
     // He roams the whole arena, flying from one random spot to the next (slowly while firing the laser)
     const px0 = b.x, py0 = b.y;
@@ -993,7 +1050,7 @@ export function createGame(canvas, opts = {}) {
     if (h.state === "melee" && h.melee && h.melee.phase !== "recover" && h.hp > 0) {
       if (kind === "beam") { h.guardBeam = (h.guardBeam || 0) + 1; if (h.guardBeam >= L2.guard.beamTicks) { h.guardBeam = 0; h.guard--; } }
       else h.guard--;
-      sparks(h.x, h.y - (h.lift ?? L2.lift) - 70, "#ffd34a", 5, 60);
+      sparks(h.x, h.y - (h.lift ?? L2.lift) - 70, "#66b3ff", 5, 60);
       if (h.guard <= 0) stunHunter(h);
     }
     s.score += Math.round(dmg * 10); gainBmp(dmg * T.bmp.perBossHp);
@@ -1100,6 +1157,10 @@ export function createGame(canvas, opts = {}) {
     if (h.state === "dead") {
       if (Math.random() < 0.6) sparks(h.x + (Math.random() - 0.5) * 30, h.y - 10 - Math.random() * 56, Math.random() < 0.5 ? C.red : "#5a8cff", 4, 80);
       if (h.t > 1.2) { h.gone = true; s.rings.push({ x: h.x, y: h.y - 36, r: 6, life: 0.35, sp: 200, thin: true, color: C.red }); }
+      return;
+    }
+    if (h.state === "held") {   // tied up in the lasso: no moves, just straining against it, arms pinned
+      for (const key in h.pose) h.pose[key] += ((key === "la" ? 0.12 : key === "ra" ? -0.12 : 0) - h.pose[key]) * Math.min(1, dt * 12);
       return;
     }
     const chest = { x: h.x, y: h.y - (h.lift ?? L2.lift) - 40 };
@@ -1226,7 +1287,8 @@ export function createGame(canvas, opts = {}) {
     const face = h.dir && h.dir.includes("left") ? -1 : 1, sink = h.sink || 0;
     ctx.fillStyle = "rgba(0,0,0,.32)"; ctx.beginPath(); ctx.ellipse(Math.round(h.x), Math.round(h.y - 1), 13, 3, 0, 0, 7); ctx.fill();
     if (h.state === "dead" && Math.floor(h.t * 10) % 2) ctx.globalAlpha = 0.5;
-    const X = Math.round(h.x - MH_W / 2), Y = Math.round(h.y - MH_H - h.lift), parts = h.flash > 0 ? m.flash : m.parts;
+    const jit = h.state === "held" ? Math.round((Math.random() - 0.5) * 2) : 0;   // struggling in the lasso
+    const X = Math.round(h.x - MH_W / 2) + jit, Y = Math.round(h.y - MH_H - h.lift), parts = h.flash > 0 ? m.flash : m.parts;
     if (fr && parts[fr]) {
       const img = parts[fr], ax = face > 0 ? 20 : img.width - 20;
       ctx.drawImage(img, Math.round(h.x) - ax, Math.round(h.y) - img.height);
@@ -1251,8 +1313,8 @@ export function createGame(canvas, opts = {}) {
       ctx.fillStyle = "#000"; ctx.fillRect(gx - 2, gy - 2, n * (bw + 2) + 2, 7);
       for (let i = 0; i < n; i++) {
         const on = i < h.guard;
-        ctx.fillStyle = on ? "#ffd34a" : "#3a3020"; ctx.fillRect(gx + i * (bw + 2), gy, bw, 3);
-        if (on) { ctx.fillStyle = "#fff4c0"; ctx.fillRect(gx + i * (bw + 2), gy, bw, 1); }
+        ctx.fillStyle = on ? "#66b3ff" : "#1c3550"; ctx.fillRect(gx + i * (bw + 2), gy, bw, 3);   // light blue
+        if (on) { ctx.fillStyle = "#d4ebff"; ctx.fillRect(gx + i * (bw + 2), gy, bw, 1); }
       }
     }
     // stunned: crackling energy arcs off him and sparkles of light run down his legs
@@ -1784,7 +1846,7 @@ export function createGame(canvas, opts = {}) {
     b.lift = bl;
     // jet flames blast below his boots
     const img = b.flash > 0 && bigRatFlash ? bigRatFlash : bigRat;
-    const shake = b.state === "dead" ? (Math.random() - 0.5) * 4 : 0;
+    const shake = b.state === "dead" ? (Math.random() - 0.5) * 4 : b.held ? Math.round((Math.random() - 0.5) * 2) : 0;   // struggling in the lasso
     if (b.state === "dead" && Math.floor(b.t * 10) % 2) ctx.globalAlpha = 0.5;
     const th = b.throw, lean = 0;
     // drawn in parts so he animates: coat and legs, then each gold arm, then his head on top
@@ -1886,6 +1948,25 @@ export function createGame(canvas, opts = {}) {
       const w = t / R.whirl, r = 5 + 6 * w, spin = t * 26;
       const k = loop(h.x, h.y - 12 - 3 * w, r, 0.38, spin, 0.95);
       cord(h.x, h.y, h.x, h.y - 6, k.x, k.y, 0.95);
+      ctx.globalAlpha = 1; return;
+    }
+    if (ro.boss) {
+      // one loop round the boss's middle, the rope pulled taut from the ring and quivering as he strains
+      const b = ro.boss, gb = b.isHunter ? hunterBox(b) : bossBox(b), bx = gb.x, by = gb.y + gb.h * 0.1, R0 = Math.max(10, gb.w * 0.6);
+      const fly = ease(Math.min(1, tw / R.reach)), formK = Math.max(0, Math.min(1, (tw - R.reach) / R.form));
+      const lx = h.x + (bx - h.x) * fly, ly = h.y - 10 * (1 - fly) + (by - h.y) * fly - Math.sin(fly * Math.PI) * 14;
+      const r = fly < 1 ? 7 + 9 * fly : (R0 + 6) - 6 * ease(formK);
+      const flat = fly < 1 ? 0.4 : 0.4 + 0.2 * ease(formK), spin = fly < 1 ? tw * 24 : R.reach * 24 + formK * 4;
+      const knot = loop(lx, ly, r, flat, spin, 1);
+      if (ro.held) { ctx.globalAlpha = 0.16; ctx.fillStyle = C.green; ctx.beginPath(); ctx.ellipse(bx, by, r, r * flat, 0, 0, 7); ctx.fill(); }
+      const dx = knot.x - h.x, dy = knot.y - h.y, d = Math.hypot(dx, dy) || 1;
+      const slack = (fly < 1 ? 0.22 : ro.held ? 0.02 : 0.1) * d, wob = ro.held ? Math.sin(t * 45) * 1.5 : 0;
+      cord(h.x, h.y, (h.x + knot.x) / 2 + (-dy / d) * wob, (h.y + knot.y) / 2 + slack + (dx / d) * wob, knot.x, knot.y, 1);
+      if (ro.held) {   // how long he'll stay held: a thin bar under him, longer while the key is held
+        const lim = (keys.has("4") || touchBtn.rope) ? R.bossHoldMax : R.bossHold, k = Math.max(0, 1 - ro.holdT / lim);
+        ctx.globalAlpha = 0.9; ctx.fillStyle = "#000"; ctx.fillRect(Math.round(bx - 13), Math.round(gb.y + gb.h / 2 + 4), 26, 3);
+        ctx.fillStyle = C.bright; ctx.fillRect(Math.round(bx - 12), Math.round(gb.y + gb.h / 2 + 5), Math.round(24 * k), 1);
+      }
       ctx.globalAlpha = 1; return;
     }
     for (const g of ro.list) {
