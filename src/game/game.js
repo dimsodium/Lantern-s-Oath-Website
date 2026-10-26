@@ -1125,13 +1125,23 @@ export function createGame(canvas, opts = {}) {
     }
     s.bolts = s.bolts.filter((b) => !b.dead);
     for (const tw of s.tornados) {
-      tw.t += dt; tw.x += tw.vx * dt; tw.y += tw.vy * dt;
       const sc = tornadoScale(tw);
+      // lock-on: once the Lantern comes within 8 grid units of any part of it (measured from its funnel, so a
+      // full-grown tornado reaches as far as a small one), it steers after him for the rest of its life
+      const LK = L2.tornado.lock, reach = LK.units * LK.unit, tcx = tw.x, tcy = tw.y - TH * sc / 2;
+      if (!tw.locked && tornadoBoxes(tw).some((bx) => boxDist(pc.x, pc.y, bx) <= reach)) { tw.locked = true; sparks(tcx, tcy, "#e6c088", 10, 80); }
+      if (tw.locked) {
+        const sp = Math.hypot(tw.vx, tw.vy) || L2.tornado.speed, cur = Math.atan2(tw.vy, tw.vx), want = Math.atan2(pc.y - tcy, pc.x - tcx);
+        const da = Math.atan2(Math.sin(want - cur), Math.cos(want - cur)), a = cur + Math.max(-LK.turn * dt, Math.min(LK.turn * dt, da));
+        tw.vx = Math.cos(a) * sp; tw.vy = Math.sin(a) * sp;
+      }
+      tw.t += dt; tw.x += tw.vx * dt; tw.y += tw.vy * dt;
       for (let i = 0; i < Math.ceil(sc); i++) if (Math.random() < 0.5) s.fx.push({ x: tw.x + (Math.random() - 0.5) * 16 * sc, y: tw.y - Math.random() * 20 * sc, vx: (Math.random() - 0.5) * 40 * sc, vy: -10 - Math.random() * 20 * sc, life: 0.3, color: Math.random() < 0.5 ? "#e6c088" : "#b06a40" });
       const cy = tw.y - TH * sc / 2, boxes = tornadoBoxes(tw);
       const overlap = (a, b) => Math.abs(a.x - b.x) < (a.w + b.w) / 2 && Math.abs(a.y - b.y) < (a.h + b.h) / 2;
       if (s.p.shield && boxes.some((bx) => boxDist(pc.x, pc.y, bx) < T.shield.r)) {
-        tw.dead = true; hitShield(L2.tornado.shieldHit); sparks(tw.x, cy, "#e6c088", 16, 110); sparks(tw.x, cy, "#9aa3ab", 10, 90);
+        // a tornado takes half the forcefield's full durability
+        tw.dead = true; hitShield(T.shield.hp * L2.tornado.shieldFrac); sparks(tw.x, cy, "#e6c088", 16, 110); sparks(tw.x, cy, "#9aa3ab", 10, 90);
       } else if (!s.p.shield && boxes.some((bx) => overlap(bx, pb))) {
         tw.dead = true; hurtPlayer(L2.tornado.dmg, tw.x, cy, true); sparks(tw.x, cy, "#e6c088", 16, 110);
       }
@@ -1201,7 +1211,8 @@ export function createGame(canvas, opts = {}) {
         const next = CYCLE[s.l2.move % CYCLE.length];   // the same move the other one just made (or leads the next)
         s.l2.turn = h.side; h.t = 0;
         if (next === "melee") { h.state = "melee"; s.meleeOwner = h; h.guard = L2.guard.hits; h.guardBeam = 0; h.melee = { phase: "approach", t: 0, arm: h.hand = h.hand === "armL" ? "armR" : "armL", hit: false }; }
-        else { h.state = "shoot"; h.seq = { kind: next, hands: HAND_ORDER(h), i: 0, t: 0, phase: "charge" }; SFX("mhCharge"); }
+        // one tornado per attack (from his first hand); lasers still come in pairs
+        else { h.state = "shoot"; h.seq = { kind: next, hands: next === "tornado" ? HAND_ORDER(h).slice(0, 1) : HAND_ORDER(h), i: 0, t: 0, phase: "charge" }; SFX("mhCharge"); }
       }
     } else if (h.state === "shoot") {
       const q = h.seq, A = L2[q.kind === "laser" ? "bolt" : "tornado"], arm = q.hands[q.i];

@@ -51,6 +51,9 @@ export const L2 = {
   // size: the sprite in pixels. boxes: its funnel as fractions of that size, measured from the sprite
   // [top, bottom, centre x offset, half width] with 0 = bottom tip, 1 = top
   // after leaving the hand a tornado grows (easing out over `grow` s) until it is growTo x a Manhunter's height
-  tornado: { grow: 2.5, growTo: 3, charge: 0.45, gap: 0.3, speed: 65,   /* 35% slower than the original 100 */ dmg: 12, shieldHit: 26, life: 5, size: [40, 46],
+  // one tornado per attack. shieldFrac: a hit on the forcefield takes this share of its full durability.
+  // lock: once the Lantern is within `units` grid units (of `unit` px) of it, the tornado locks on and steers after him
+  tornado: { grow: 2.5, growTo: 3, charge: 0.45, gap: 0.3, speed: 65,   /* 35% slower than the original 100 */ dmg: 12, shieldFrac: 0.5, life: 5, size: [40, 46],
+    lock: { units: 8, unit: 16, turn: 2.2 },
     boxes: [[1, 0.67, 0, 0.48], [0.67, 0.28, -0.01, 0.29], [0.28, 0, 0.04, 0.16]] },
 };
