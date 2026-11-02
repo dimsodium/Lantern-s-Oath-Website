@@ -331,28 +331,70 @@ export function createGame(canvas, opts = {}) {
     s.follow = { camY: s.camY, py: s.p.y };   // the level proper begins: point him at the guide lantern, once
     s.banner = { text: skipped ? "TUTORIAL SKIPPED" : "TUTORIAL COMPLETE", sub: "HOLD THE LINE", t: 2 };
   }
+  // The tutorial's messages come from the guide lantern at the top of the screen, in the same speech bubble as Mogo's
+  // on the home page (public/img/speech-bubble.svg): a mint-green pixel box with a darker green edge and corners
+  // stepped in three pixels, dark green text typed out letter by letter with a block caret, glowing ring green.
+  // Here it's drawn in game pixels of BU canvas pixels, with a stepped tail reaching up to the lantern.
+  const BU = 3, BUB = { fill: "#5fff8a", edge: "#17a540", ink: "#04210d" };
+  function bubbleRect(x, y, w, h) {   // x, y, w, h in bubble pixels (BU canvas px each)
+    const px = (cx, cy, cw, ch, col) => { ctx.fillStyle = col; ctx.fillRect(x * BU + cx * BU, y * BU + cy * BU, cw * BU, ch * BU); };
+    // rows, top to bottom, exactly like the SVG: the corners step in 3, 2, 1
+    for (let r = 0; r < h; r++) {
+      const inset = r === 0 || r === h - 1 ? 3 : r === 1 || r === h - 2 ? 2 : r === 2 || r === h - 3 ? 1 : 0;
+      if (r === 0 || r === h - 1) { px(3, r, w - 6, 1, BUB.edge); continue; }
+      px(inset - 1 < 0 ? 0 : inset - 1, r, 1, 1, BUB.edge); px(w - inset, r, 1, 1, BUB.edge);
+      px(inset, r, w - inset * 2, 1, BUB.fill);
+    }
+  }
   function drawTutorial() {
     const tu = s.tut, st = TUT[Math.min(tu.step, TUT.length - 1)], p = s.p;
-    const lines = [];
-    if (tu.done > 0) lines.push(["NICE!", 14, C.bright]);
-    else {
-      lines.push([st.msg, 12, C.green]);
-      if (st.sub) lines.push([st.sub, 7, C.text]);
-      // the ring never refills by itself: point to G when it is too low for the move being taught
-      const need = { fist: T.fist.cost, boulder: T.boulder.cost, beam: T.beam.start, rope: T.rope.cost, bmp: T.charge - 0.5 }[st.id];
-      if (need != null && p.charge < need && !p.oath) lines.push(["TAP G TO RECITE THE OATH AND RECHARGE YOUR RING", 7, C.gold]);
-    }
+    // the guide lantern hangs at the top while it talks him through the controls
+    const g = drawGuideLantern();
+    if (tu.done > 0) return;   // a quiet beat between steps
     if (p.oath || s.oathEcho > 0) return;   // the Oath's own panel takes this spot while he recites it
-    const foot = `STEP ${Math.min(tu.step + 1, TUT.length)} OF ${TUT.length}  -  ENTER TO SKIP`;
-    let bw = 0;
-    for (const [str, size] of [...lines, [foot, 6]]) { ctx.font = `${size}px "Press Start 2P", monospace`; bw = Math.max(bw, ctx.measureText(str).width); }
-    bw = Math.min(W - 16, bw + 36);
-    const y0 = 112, hgt = 22 + lines.reduce((a, l) => a + l[1] + 10, 0) + 6;
-    ctx.globalAlpha = 0.65; ctx.fillStyle = "#000"; ctx.fillRect(Math.round(W / 2 - bw / 2), y0 - 12, Math.round(bw), hgt); ctx.globalAlpha = 1;
-    ctx.fillStyle = C.green; ctx.fillRect(Math.round(W / 2 - bw / 2), y0 - 12, Math.round(bw), 2);
-    let y = y0 + 2;
-    for (const [str, size, col] of lines) { text(str, W / 2, y + size / 2, size, col); y += size + 10; }
-    text(foot, W / 2, y0 + hgt - 18, 6, C.muted);
+    const lines = [[st.msg, 10]];
+    if (st.sub) lines.push([st.sub, 7]);
+    // the ring never refills by itself: point to G when it is too low for the move being taught
+    const need = { fist: T.fist.cost, boulder: T.boulder.cost, beam: T.beam.start, rope: T.rope.cost, bmp: T.charge - 0.5 }[st.id];
+    if (need != null && p.charge < need && !p.oath) lines.push(["TAP G TO RECITE THE OATH AND RECHARGE YOUR RING", 7]);
+    // size: as wide as the longest line, with Mogo's bubble's proportions of edge and padding
+    let tw = 0;
+    for (const [str, size] of lines) { ctx.font = `${size}px "Press Start 2P", monospace`; tw = Math.max(tw, ctx.measureText(str).width + size); }
+    const lineH = lines.map(([, size]) => size + 9), textH = lineH.reduce((a, v) => a + v, 0);
+    const bw = Math.min(Math.floor((W - 12) / BU), Math.ceil((tw + 40) / BU)), bh = Math.max(13, Math.ceil((textH + 22) / BU));
+    const tail = 4, bx = Math.round((W / 2) / BU - bw / 2), by = Math.round((g.y + g.h / 2 + 6) / BU) + tail;
+    // it builds out of the lantern's light: grows from its centre for the first moment of each step
+    const k = Math.min(1, tu.t / 0.22), sc = k < 1 ? 0.15 + 0.85 * (1 - (1 - k) * (1 - k)) + Math.sin(k * Math.PI) * 0.06 : 1;
+    const ox = (bx + bw / 2) * BU, oy = (by - tail) * BU;
+    ctx.save();
+    ctx.translate(ox, oy); ctx.scale(sc, sc); ctx.translate(-ox, -oy);
+    ctx.shadowColor = "rgba(47, 216, 95, 0.75)"; ctx.shadowBlur = 10;
+    // the tail: a stepped point from the bubble's top edge up toward the lantern
+    const tx = Math.max(bx + 6, Math.min(bx + bw - 7, Math.round(g.x / BU)));
+    for (let i = 0; i < tail; i++) {
+      const half = tail - 1 - i, yy = by - 1 - i;   // wider at the bubble, narrowing up to a point
+      ctx.fillStyle = BUB.edge; ctx.fillRect((tx - half - 1) * BU, yy * BU, (half * 2 + 3) * BU, BU);
+      ctx.fillStyle = BUB.fill; if (half >= 0 && i < tail - 1) ctx.fillRect((tx - half) * BU, yy * BU, (half * 2 + 1) * BU, BU);
+    }
+    bubbleRect(bx, by, bw, bh);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = BUB.fill; ctx.fillRect((tx - (tail - 1)) * BU, by * BU, ((tail - 1) * 2 + 1) * BU, BU);   // tail opens into the bubble
+    // typed out, one line after the other, with a block caret (solid while typing, blinking once done)
+    let left = Math.max(0, (tu.t - 0.25) * 34), y = by * BU + (bh * BU - textH) / 2, caret = null;
+    ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = BUB.ink;
+    for (let i = 0; i < lines.length; i++) {
+      const [str, size] = lines[i], n = Math.min(str.length, Math.floor(left));
+      left -= str.length;
+      ctx.font = `${size}px "Press Start 2P", monospace`;
+      const full = ctx.measureText(str).width, x0 = Math.round(W / 2 - full / 2), cy = Math.round(y + lineH[i] / 2);
+      if (n > 0) ctx.fillText(str.slice(0, n), x0, cy);
+      if (n > 0 || i === 0) caret = { x: x0 + ctx.measureText(str.slice(0, n)).width + 1, y: cy, size, typing: n < str.length };
+      if (n < str.length) break;
+      y += lineH[i];
+    }
+    if (caret && (caret.typing || Math.floor(s.t / 0.4) % 2 === 0)) { ctx.fillStyle = BUB.ink; ctx.fillRect(Math.round(caret.x), Math.round(caret.y - caret.size / 2), Math.ceil(caret.size * 0.6), caret.size); }
+    ctx.restore();
+    text(`STEP ${Math.min(tu.step + 1, TUT.length)} OF ${TUT.length}  -  ENTER TO SKIP`, W / 2, (by + bh) * BU + 12, 6, C.muted);
   }
 
   function startBoss() {
@@ -2384,15 +2426,21 @@ export function createGame(canvas, opts = {}) {
   }
   // A power battery lantern floats ahead near the top of the screen to guide the way up,
   // glowing, with motes of green light drifting from the Lantern up toward it.
-  function drawGoArrow() {
-    if (!guideLantern || !guideLantern.complete) return;
-    const lw = guideLantern.width, lh = guideLantern.height;
+  // the guide lantern bobbing at the top of the screen; returns where it is (for the tutorial's speech bubble)
+  function drawGuideLantern() {
+    const lw = guideLantern && guideLantern.width || 40, lh = guideLantern && guideLantern.height || 48;
     const cx = Math.round(W / 2 + Math.sin(s.t * 0.9) * 24), cy = Math.round(78 + Math.sin(s.t * 2.2) * 5);
+    if (!guideLantern || !guideLantern.complete) return { x: cx, y: cy, h: lh };
     // soft glow
     const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, 60);
     g.addColorStop(0, "rgba(141,255,173,0.45)"); g.addColorStop(1, "rgba(47,216,95,0)");
     ctx.fillStyle = g; ctx.fillRect(cx - 60, cy - 60, 120, 120);
     ctx.drawImage(guideLantern, cx - Math.round(lw / 2), cy - Math.round(lh / 2));
+    return { x: cx, y: cy, h: lh };
+  }
+  function drawGoArrow() {
+    if (!guideLantern || !guideLantern.complete) return;
+    const { y: cy, h: lh } = drawGuideLantern();
     // shown once, as the level proper begins, until he first moves forward
     if (s.follow) text("FOLLOW THE LANTERN TO MOVE FORWARD", W / 2, cy + Math.round(lh / 2) + 16, 10, C.green);
   }
