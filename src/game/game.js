@@ -51,7 +51,7 @@ export function createGame(canvas, opts = {}) {
     if (testBoss) { s.camY = BOSS_STOP; s.p.y = BOSS_STOP + H - 40; }
     if (testL2 || resumeLevel === 2) enterLevel2(true);
     // a fresh level 1 run starts with the controls tutorial (Enter skips it)
-    else if (!s.test) s.tut = { step: 0, t: 0, done: 0, moveT: 0, boostT: 0, beamT: 0, used: false, rats: [] };
+    else if (!s.test) s.tut = { step: 0, t: 0, done: 0, moveT: 0, aimT: 0, aimPrev: null, boostT: 0, beamT: 0, used: false, rats: [] };
   }
   reset();
 
@@ -274,6 +274,7 @@ export function createGame(canvas, opts = {}) {
   // rats surround the Lantern and close in from every side, with the Beware My Power meter full, to finish with it.
   const TUT = [
     { id: "move", msg: "PRESS W A S D OR THE ARROW KEYS TO MOVE" },
+    { id: "aim", msg: "USE CURSOR TO FACE DIRECTIONS" },
     { id: "boost", msg: "HOLD SHIFT WHILE MOVING TO FLY FASTER" },
     { id: "fist", msg: "CLICK 1 TO USE CONSTRUCT FIST" },
     { id: "boulder", msg: "CLICK 2 TO USE CONSTRUCT BOULDER", sub: "IT SMASHES THROUGH A WHOLE LINE OF ENEMIES" },
@@ -308,6 +309,10 @@ export function createGame(canvas, opts = {}) {
     const ratsLeft = tu.rats.some((r) => r.hp > 0 && s.rats.includes(r));
     let ok = false;
     if (st.id === "move") { if (p.moving) tu.moveT += dt; ok = tu.moveT > 1; }
+    else if (st.id === "aim") {   // turned him round with the mouse (or a drag) through about half a circle
+      if (tu.aimPrev != null) tu.aimT += Math.abs(Math.atan2(Math.sin(p.aim - tu.aimPrev), Math.cos(p.aim - tu.aimPrev)));
+      tu.aimPrev = p.aim; ok = tu.aimT > 3;
+    }
     else if (st.id === "boost") { if (p.boosting) tu.boostT += dt; ok = tu.boostT > 0.8; }
     else {
       if (st.id === "fist" && p.punch && p.punch.kind === "fist") tu.used = true;
@@ -319,10 +324,11 @@ export function createGame(canvas, opts = {}) {
       // all the rats down before the move was tried: send in another group to try it on
       if (!tu.used && !ratsLeft && tu.t > 1) { tutWave(st.id); tu.t = 0; }
     }
-    if (ok) { tu.done = 1.2; SFX("ratDie"); sparks(p.x, p.y - 24, C.bright, 12, 90); }
+    if (ok) { tu.done = 1.2; sparks(p.x, p.y - 24, C.bright, 12, 90); }
   }
   function endTutorial(skipped) {
     s.tut = null; s.spawnT = 1.2;
+    s.follow = { camY: s.camY, py: s.p.y };   // the level proper begins: point him at the guide lantern, once
     s.banner = { text: skipped ? "TUTORIAL SKIPPED" : "TUTORIAL COMPLETE", sub: "HOLD THE LINE", t: 2 };
   }
   function drawTutorial() {
@@ -678,6 +684,7 @@ export function createGame(canvas, opts = {}) {
     s.waveOn = alive > 0;
     // Show the "move forward" arrow whenever there is more of the climb open ahead
     s.goT = !s.boss && !atBoss && !s.tut && s.camY - limitY > 20 ? 0.5 : 0;
+    if (s.follow && (s.camY < s.follow.camY - 25 || s.p.y < s.follow.py - 120)) s.follow = null;   // he's moved forward: the hint goes for good
 
     // Punch
     if (p.punch) {
@@ -2386,6 +2393,8 @@ export function createGame(canvas, opts = {}) {
     g.addColorStop(0, "rgba(141,255,173,0.45)"); g.addColorStop(1, "rgba(47,216,95,0)");
     ctx.fillStyle = g; ctx.fillRect(cx - 60, cy - 60, 120, 120);
     ctx.drawImage(guideLantern, cx - Math.round(lw / 2), cy - Math.round(lh / 2));
+    // shown once, as the level proper begins, until he first moves forward
+    if (s.follow) text("FOLLOW THE LANTERN TO MOVE FORWARD", W / 2, cy + Math.round(lh / 2) + 16, 10, C.green);
   }
   function drawHud() {
     const p = s.p;

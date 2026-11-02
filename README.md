@@ -39,7 +39,7 @@ Signed out, `#play` sends you to `#login`. Signed in (account or guest), `#login
 
 On touch screens, drag on the left to fly and use the buttons on the right.
 
-A new run of Level 1 opens with a tutorial (Enter skips it): W A S D / arrows, then Shift, and only then do rats come, a few at a time for each construct (1 fist, 2 boulder on a line of rats, 3 beam, 4 rope), then eight rats closing in from every side with the Beware My Power meter full. Normal spawning starts once it's done.
+A new run of Level 1 opens with a tutorial (Enter skips it): W A S D / arrows, the cursor to face, then Shift, and only then do rats come, a few at a time for each construct (1 fist, 2 boulder on a line of rats, 3 beam, 4 rope), then eight rats closing in from every side with the Beware My Power meter full. Normal spawning starts once it's done, with a one-time "Follow the lantern to move forward" under the guide lantern until you first move up.
 
 The ring never refills by itself. If it runs dry while your health is at half or lower, the Lantern drops back to plain Hal (no suit, no flight boost) until you recharge.
 
