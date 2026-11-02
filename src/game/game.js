@@ -50,6 +50,8 @@ export function createGame(canvas, opts = {}) {
     };
     if (testBoss) { s.camY = BOSS_STOP; s.p.y = BOSS_STOP + H - 40; }
     if (testL2 || resumeLevel === 2) enterLevel2(true);
+    // a fresh level 1 run starts with the controls tutorial (Enter skips it)
+    else if (!s.test) s.tut = { step: 0, t: 0, done: 0, moveT: 0, boostT: 0, beamT: 0, used: false, rats: [] };
   }
   reset();
 
@@ -257,6 +259,96 @@ export function createGame(canvas, opts = {}) {
       speed: T.rat.speed * (0.85 + Math.random() * 0.3),
     });
   }
+  // a rat dropped in at a set spot (the tutorial's waves), with a puff of light so it doesn't just appear
+  function spawnRatAt(x, y, slow = 1, free = false) {
+    if (!free) { x = Math.max(14, Math.min(W - 14, x)); y = Math.max(s.camY + 50, Math.min(s.camY + H - 12, y)); }
+    const face = x < s.p.x ? 1 : -1;
+    const r = { x, y, hp: T.rat.hp, face, state: "walk", t: 0, cd: 0.9, walk: Math.random(), flash: 0, stun: 0, kx: 0, ky: 0, speed: T.rat.speed * slow * (0.85 + Math.random() * 0.3) };
+    s.rats.push(r); sparks(x, y - 8, "#9aa3ab", 8, 60);
+    return r;
+  }
+
+  // ---------- Controls tutorial (start of level 1) ----------
+  // Moving first, then fast flight; only then do rats come, a few at a time, each group sent in to show off one
+  // construct: the fist, the boulder (a line of rats it smashes straight through), the beam, the rope. Last, eight
+  // rats surround the Lantern and close in from every side, with the Beware My Power meter full, to finish with it.
+  const TUT = [
+    { id: "move", msg: "PRESS W A S D OR THE ARROW KEYS TO MOVE" },
+    { id: "boost", msg: "HOLD SHIFT WHILE MOVING TO FLY FASTER" },
+    { id: "fist", msg: "CLICK 1 TO USE CONSTRUCT FIST" },
+    { id: "boulder", msg: "CLICK 2 TO USE CONSTRUCT BOULDER", sub: "IT SMASHES THROUGH A WHOLE LINE OF ENEMIES" },
+    { id: "beam", msg: "HOLD 3 TO USE CONSTRUCT BEAM" },
+    { id: "rope", msg: "CLICK 4 TO USE CONSTRUCT ROPE", sub: "IT LASSOS UP TO FOUR ENEMIES AND REELS THEM IN" },
+    { id: "bmp", msg: "CLICK V TO USE BEWARE MY POWER", sub: "RING CHARGE MUST BE 100% BEFORE USING BEWARE MY POWER" },
+  ];
+  function tutWave(id) {
+    const p = s.p, side = p.x < W / 2 ? 1 : -1, edge = side < 0 ? 30 : W - 30;
+    const L = s.tut.rats = [];
+    if (id === "fist") { L.push(spawnRatAt(edge, p.y - 30), spawnRatAt(edge, p.y + 10)); }
+    else if (id === "boulder") { const y = Math.max(s.camY + 90, p.y - 20); for (let i = 0; i < 3; i++) L.push(spawnRatAt(edge - side * i * 26, y)); }   // one behind the other, in a line
+    else if (id === "beam" || id === "rope") { for (let i = 0; i < 3; i++) L.push(spawnRatAt(edge - side * (i % 2) * 40, p.y - 60 + i * 50)); }
+    else if (id === "bmp") {   // eight, all the way round him
+      // centred on him even near the edge of the screen (those ones walk in from off it); they close in slowly, and
+      // if the ring isn't at 100% they hold just out of reach while it recharges
+      for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; const r = spawnRatAt(p.x + Math.cos(a) * 170, p.y - 20 + Math.sin(a) * 130, 0.35, true); r.tutRing = true; L.push(r); }
+      p.bmp = 100;   // the meter is full by now
+    }
+  }
+  function updateTutorial(dt) {
+    const tu = s.tut, p = s.p, st = TUT[tu.step];
+    tu.t += dt;
+    if (tu.done > 0) {   // a short "nice" beat between steps
+      tu.done -= dt;
+      if (tu.done <= 0) {
+        tu.step++; tu.t = 0; tu.used = false; tu.rats = [];
+        if (tu.step >= TUT.length) endTutorial(false); else tutWave(TUT[tu.step].id);
+      }
+      return;
+    }
+    const ratsLeft = tu.rats.some((r) => r.hp > 0 && s.rats.includes(r));
+    let ok = false;
+    if (st.id === "move") { if (p.moving) tu.moveT += dt; ok = tu.moveT > 1; }
+    else if (st.id === "boost") { if (p.boosting) tu.boostT += dt; ok = tu.boostT > 0.8; }
+    else {
+      if (st.id === "fist" && p.punch && p.punch.kind === "fist") tu.used = true;
+      if (st.id === "boulder" && s.boulders.length) tu.used = true;
+      if (st.id === "beam" && p.beam && (tu.beamT += dt) > 0.6) tu.used = true;
+      if (st.id === "rope" && p.rope) tu.used = true;
+      if (st.id === "bmp" && p.bmpAnim > 0) tu.used = true;
+      ok = tu.used && !ratsLeft && p.bmpAnim <= 0;
+      // all the rats down before the move was tried: send in another group to try it on
+      if (!tu.used && !ratsLeft && tu.t > 1) { tutWave(st.id); tu.t = 0; }
+    }
+    if (ok) { tu.done = 1.2; SFX("ratDie"); sparks(p.x, p.y - 24, C.bright, 12, 90); }
+  }
+  function endTutorial(skipped) {
+    s.tut = null; s.spawnT = 1.2;
+    s.banner = { text: skipped ? "TUTORIAL SKIPPED" : "TUTORIAL COMPLETE", sub: "HOLD THE LINE", t: 2 };
+  }
+  function drawTutorial() {
+    const tu = s.tut, st = TUT[Math.min(tu.step, TUT.length - 1)], p = s.p;
+    const lines = [];
+    if (tu.done > 0) lines.push(["NICE!", 14, C.bright]);
+    else {
+      lines.push([st.msg, 12, C.green]);
+      if (st.sub) lines.push([st.sub, 7, C.text]);
+      // the ring never refills by itself: point to G when it is too low for the move being taught
+      const need = { fist: T.fist.cost, boulder: T.boulder.cost, beam: T.beam.start, rope: T.rope.cost, bmp: T.charge - 0.5 }[st.id];
+      if (need != null && p.charge < need && !p.oath) lines.push(["TAP G TO RECITE THE OATH AND RECHARGE YOUR RING", 7, C.gold]);
+    }
+    if (p.oath || s.oathEcho > 0) return;   // the Oath's own panel takes this spot while he recites it
+    const foot = `STEP ${Math.min(tu.step + 1, TUT.length)} OF ${TUT.length}  -  ENTER TO SKIP`;
+    let bw = 0;
+    for (const [str, size] of [...lines, [foot, 6]]) { ctx.font = `${size}px "Press Start 2P", monospace`; bw = Math.max(bw, ctx.measureText(str).width); }
+    bw = Math.min(W - 16, bw + 36);
+    const y0 = 112, hgt = 22 + lines.reduce((a, l) => a + l[1] + 10, 0) + 6;
+    ctx.globalAlpha = 0.65; ctx.fillStyle = "#000"; ctx.fillRect(Math.round(W / 2 - bw / 2), y0 - 12, Math.round(bw), hgt); ctx.globalAlpha = 1;
+    ctx.fillStyle = C.green; ctx.fillRect(Math.round(W / 2 - bw / 2), y0 - 12, Math.round(bw), 2);
+    let y = y0 + 2;
+    for (const [str, size, col] of lines) { text(str, W / 2, y + size / 2, size, col); y += size + 10; }
+    text(foot, W / 2, y0 + hgt - 18, 6, C.muted);
+  }
+
   function startBoss() {
     s.boss = { x: W / 2, y: s.camY - 10, hp: T.boss.hp, max: T.boss.hp, state: "enter", t: 0, step: 0, shots: 0,
       flash: 0, sway: 0, aim: Math.PI / 2, laser: false };
@@ -520,6 +612,7 @@ export function createGame(canvas, opts = {}) {
       }
     }
     if (pressed.has("v") || pressed.has("power")) bewareMyPower();
+    if (s.tut && pressed.has("Enter")) endTutorial(true);
     pressed.clear();
 
     // Movement
@@ -571,7 +664,7 @@ export function createGame(canvas, opts = {}) {
     // Spawning: a steady stream of rats that grows as you climb, until the mini-boss arena
     const alive = s.rats.filter((r) => r.hp > 0).length;
     const atBoss = s.camY <= BOSS_STOP + 0.5;
-    if (!s.boss && !atBoss) {
+    if (!s.boss && !atBoss && !s.tut) {   // no stream of rats until the tutorial is done
       const k = Math.min(1, Math.max(0, s.camY / BOSS_STOP)), lerp = ([a0, a1]) => a0 + (a1 - a0) * k;
       s.spawnT -= dt;
       if (s.spawnT <= 0 && alive < Math.round(lerp(FLOW.maxAlive))) {
@@ -584,7 +677,7 @@ export function createGame(canvas, opts = {}) {
     if (atBoss && !s.boss && alive === 0 && s.level === 1) startBoss();
     s.waveOn = alive > 0;
     // Show the "move forward" arrow whenever there is more of the climb open ahead
-    s.goT = !s.boss && !atBoss && s.camY - limitY > 20 ? 0.5 : 0;
+    s.goT = !s.boss && !atBoss && !s.tut && s.camY - limitY > 20 ? 0.5 : 0;
 
     // Punch
     if (p.punch) {
@@ -767,9 +860,12 @@ export function createGame(canvas, opts = {}) {
       const reach = p.shield ? T.shield.r + 6 : T.rat.reach;
       if (r.state === "walk") {
         const a = Math.atan2(pc.y - rc.y, pc.x - rc.x);
-        if (d > reach - 3) { r.x += Math.cos(a) * r.speed * dt; r.y += Math.sin(a) * r.speed * dt; r.walk += dt * 6; }
+        // the tutorial's last ring of rats closes in, then holds just out of reach until the ring is fully charged
+        const wait = r.tutRing && s.tut && p.charge < T.charge - 0.5, hold = wait && d < 60;
+        if (wait && d < 45) { r.x -= Math.cos(a) * 30 * dt; r.y -= Math.sin(a) * 30 * dt; }   // backs off to give him room
+        if (d > reach - 3 && !hold) { r.x += Math.cos(a) * r.speed * dt; r.y += Math.sin(a) * r.speed * dt; r.walk += dt * 6; }
         r.face = pc.x >= r.x ? 1 : -1;
-        if (d < reach && r.cd <= 0) { r.state = "windup"; r.t = 0; }
+        if (d < reach && r.cd <= 0 && !wait) { r.state = "windup"; r.t = 0; }
       } else if (r.state === "windup") {
         if (r.t >= T.rat.windup) {
           r.state = "swing"; r.t = 0; SFX("ratSwing");
@@ -790,8 +886,10 @@ export function createGame(canvas, opts = {}) {
         if (dd < 12 && dd > 0) { r.x += ((r.x - o.x) / dd) * 20 * dt; r.y += ((r.y - o.y) / dd) * 20 * dt; }
       }
     }
-    for (const r of s.rats) if (r.hp <= 0) { s.kills++; s.p.hp = Math.min(T.hp, s.p.hp + FLOW.heal); }
+    // (tutorial rats don't open up the climb)
+    for (const r of s.rats) if (r.hp <= 0) { if (!s.tut) s.kills++; s.p.hp = Math.min(T.hp, s.p.hp + FLOW.heal); }
     s.rats = s.rats.filter((r) => r.hp > 0);
+    if (s.tut) updateTutorial(dt);
 
     // Boss
     const b = s.boss;
@@ -2538,6 +2636,7 @@ export function createGame(canvas, opts = {}) {
 
     if (s.mode !== "title") drawHud();
     if (s.mode === "play" || s.mode === "paused") drawPauseButton();
+    if (s.tut && s.mode === "play" && !s.dialog) drawTutorial();
     if (s.banner) {
       const bn = s.banner;
       if (bn.big) { text("BEWARE", W / 2, H / 2 - 50, 14, C.green); text("MY POWER!", W / 2, H / 2 - 30, 14, C.green); }
